@@ -177,6 +177,40 @@ async with streamablehttp_client("http://localhost:8000/mcp", headers=headers) a
         # Use the session to call tools, list prompts, etc.
 ```
 
+### Cursor Integration
+
+To add the LangSmith MCP Server to Cursor using HTTP-streamable protocol, add the following to your `mcp.json` configuration file:
+
+```json
+{
+  "mcpServers": {
+    "HTTP-Streamable LangSmith MCP Server": {
+      "url": "http://localhost:8000/mcp",
+      "headers": {
+        "LANGSMITH-API-KEY": "lsv2_pt_your_api_key_here"
+      }
+    }
+  }
+}
+```
+
+**Optional headers:**
+```json
+{
+  "mcpServers": {
+    "HTTP-Streamable LangSmith MCP Server": {
+      "url": "http://localhost:8000/mcp",
+      "headers": {
+        "LANGSMITH-API-KEY": "lsv2_pt_your_api_key_here",
+        "LANGSMITH-WORKSPACE-ID": "your_workspace_id",
+        "LANGSMITH-ENDPOINT": "https://api.smith.langchain.com"
+      }
+    }
+  }
+}
+```
+
+Make sure the server is running before connecting Cursor to it.
 
 ### Health Check
 
