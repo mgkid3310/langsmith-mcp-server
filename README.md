@@ -177,7 +177,6 @@ async with streamablehttp_client("http://localhost:8000/mcp", headers=headers) a
         # Use the session to call tools, list prompts, etc.
 ```
 
-**Note:** The API key from the header is stored in the session on the first request, so subsequent requests in the same session don't need to send it again.
 
 ### Health Check
 
