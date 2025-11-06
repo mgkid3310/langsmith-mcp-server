@@ -6,11 +6,13 @@ This server exposes methods to interact with LangSmith's observability platform:
 - pull_prompt: Pull a specific prompt by its name
 """
 
-import os
+from fastmcp import FastMCP
+from starlette.requests import Request
+from starlette.responses import PlainTextResponse
+from starlette.middleware import Middleware
+from starlette.middleware.cors import CORSMiddleware
 
-from mcp.server.fastmcp import FastMCP
-
-from langsmith_mcp_server.langsmith_client import LangSmithClient
+from langsmith_mcp_server.middleware import APIKeyMiddleware
 from langsmith_mcp_server.services import (
     register_prompts,
     register_resources,
@@ -20,26 +22,30 @@ from langsmith_mcp_server.services import (
 # Create MCP server
 mcp = FastMCP("LangSmith API MCP Server")
 
-# Default configuration (will be overridden in main or by direct assignment)
-default_api_key = os.environ.get("LANGSMITH_API_KEY")
-default_workspace_id = os.environ.get("LANGSMITH_WORKSPACE_ID")
-default_endpoint = os.environ.get("LANGSMITH_ENDPOINT")
-
-langsmith_client = (
-    LangSmithClient(
-        api_key=default_api_key,
-        workspace_id=default_workspace_id,
-        endpoint=default_endpoint
-    ) 
-    if default_api_key 
-    else None
-)
-
 # Register all tools with the server using simplified registration modules
-register_tools(mcp, langsmith_client)
-register_prompts(mcp, langsmith_client)
-register_resources(mcp, langsmith_client)
+# Note: Tools will use API key from request.state.api_key (set by middleware)
+register_tools(mcp, None)  # Pass None since we'll use request-based client
+register_prompts(mcp, None)
+register_resources(mcp, None)
 
+@mcp.custom_route("/health", methods=["GET"])
+async def health_check(request: Request) -> PlainTextResponse:
+    return PlainTextResponse("LangSmith MCP server is running")
+
+# Define middleware - API key middleware must be first
+middleware = [
+    Middleware(APIKeyMiddleware),
+    Middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_methods=["*"],
+        allow_headers=["*"],
+        expose_headers=["mcp-session-id"],
+    ),
+]
+
+# Create ASGI application
+app = mcp.http_app(middleware=middleware)
 
 def main() -> None:
     """Run the LangSmith MCP server."""

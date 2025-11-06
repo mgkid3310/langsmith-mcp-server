@@ -130,6 +130,97 @@ The LangSmith MCP Server supports the following environment variables:
 - `LANGSMITH_WORKSPACE_ID` is useful when your API key has access to multiple workspaces
 - `LANGSMITH_ENDPOINT` allows you to use custom endpoints for self-hosted LangSmith installations or the EU region
 
+## 🐳 Docker Deployment (HTTP-Streamable)
+
+The LangSmith MCP Server can be deployed as an HTTP server using Docker, enabling remote access via the HTTP-streamable protocol.
+
+### Building the Docker Image
+
+```bash
+docker build -t langsmith-mcp-server .
+```
+
+### Running with Docker
+
+```bash
+docker run -p 8000:8000 langsmith-mcp-server
+```
+
+The API key is provided via the `LANGSMITH-API-KEY` header when connecting, so no environment variables are required for HTTP-streamable protocol.
+
+### Connecting with HTTP-Streamable Protocol
+
+Once the Docker container is running, you can connect to it using the HTTP-streamable transport. The server accepts authentication via headers:
+
+**Required header:**
+- `LANGSMITH-API-KEY`: Your LangSmith API key
+
+**Optional headers:**
+- `LANGSMITH-WORKSPACE-ID`: Workspace ID for API keys scoped to multiple workspaces
+- `LANGSMITH-ENDPOINT`: Custom endpoint URL (for self-hosted or EU region)
+
+**Example client configuration:**
+```python
+from mcp import ClientSession
+from mcp.client.streamable_http import streamablehttp_client
+
+headers = {
+    "LANGSMITH-API-KEY": "lsv2_pt_your_api_key_here",
+    # Optional:
+    # "LANGSMITH-WORKSPACE-ID": "your_workspace_id",
+    # "LANGSMITH-ENDPOINT": "https://api.smith.langchain.com",
+}
+
+async with streamablehttp_client("http://localhost:8000/mcp", headers=headers) as (read, write, _):
+    async with ClientSession(read, write) as session:
+        await session.initialize()
+        # Use the session to call tools, list prompts, etc.
+```
+
+### Cursor Integration
+
+To add the LangSmith MCP Server to Cursor using HTTP-streamable protocol, add the following to your `mcp.json` configuration file:
+
+```json
+{
+  "mcpServers": {
+    "HTTP-Streamable LangSmith MCP Server": {
+      "url": "http://localhost:8000/mcp",
+      "headers": {
+        "LANGSMITH-API-KEY": "lsv2_pt_your_api_key_here"
+      }
+    }
+  }
+}
+```
+
+**Optional headers:**
+```json
+{
+  "mcpServers": {
+    "HTTP-Streamable LangSmith MCP Server": {
+      "url": "http://localhost:8000/mcp",
+      "headers": {
+        "LANGSMITH-API-KEY": "lsv2_pt_your_api_key_here",
+        "LANGSMITH-WORKSPACE-ID": "your_workspace_id",
+        "LANGSMITH-ENDPOINT": "https://api.smith.langchain.com"
+      }
+    }
+  }
+}
+```
+
+Make sure the server is running before connecting Cursor to it.
+
+### Health Check
+
+The server provides a health check endpoint:
+```bash
+curl http://localhost:8000/health
+```
+
+This endpoint does not require authentication and returns `"LangSmith MCP server is running"` when the server is healthy.
+
 ## 🧪 Development and Contributing 🤝
 
 If you want to develop or contribute to the LangSmith MCP Server, follow these steps:
