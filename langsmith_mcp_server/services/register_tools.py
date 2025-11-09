@@ -896,6 +896,16 @@ def register_tools(mcp: FastMCP) -> None:
         Returns:
             Dict[str, Any]: Dictionary containing the dataset details,
                             or an error message if the dataset cannot be retrieved
+
+        Example in case you need to create a separate python script to read a dataset:
+            ```python
+            from langsmith import Client
+
+            client = Client()
+            dataset = client.read_dataset(dataset_name="My Dataset")
+            # Or by ID:
+            # dataset = client.read_dataset(dataset_id="dataset-id-here")
+            ```
         """
         try:
             client = get_client_from_context(ctx)
@@ -924,6 +934,16 @@ def register_tools(mcp: FastMCP) -> None:
         Returns:
             Dict[str, Any]: Dictionary containing the example details,
                             or an error message if the example cannot be retrieved
+
+        Example in case you need to create a separate python script to read an example:
+            ```python
+            from langsmith import Client
+
+            client = Client()
+            example = client.read_example(example_id="example-id-here")
+            # Or with version:
+            # example = client.read_example(example_id="example-id-here", as_of="v1.0")
+            ```
         """
         try:
             client = get_client_from_context(ctx)
@@ -934,3 +954,364 @@ def register_tools(mcp: FastMCP) -> None:
             )
         except Exception as e:
             return {"error": str(e)}
+
+    @mcp.tool()
+    def create_dataset(ctx: Context = None) -> None:
+        """
+        Documentation tool for understanding how to create datasets in LangSmith.
+
+        This tool provides comprehensive documentation on creating datasets programmatically
+        using the LangSmith Python SDK, including creating datasets from lists, traces, CSV files,
+        and pandas DataFrames.
+
+        ---
+        🧩 PURPOSE
+        ----------
+        This is a **documentation-only tool** that explains how to:
+        - Create datasets from lists of examples
+        - Create datasets from traces/runs
+        - Create datasets from CSV files
+        - Create datasets from pandas DataFrames
+        - Add examples to datasets using bulk operations
+
+        ---
+        📦 REQUIRED DEPENDENCIES
+        ------------------------
+        To use the functionality described in this documentation, you need:
+        - `langsmith` - The LangSmith Python client
+        - `pandas` (optional) - Required only for DataFrame operations
+
+        Install with:
+        ```bash
+        pip install langsmith
+        # Optional, for DataFrame operations:
+        pip install pandas
+        ```
+
+        ---
+        🔧 CREATING DATASETS
+        --------------------
+
+        1️⃣ **Create Dataset from List of Values**
+
+        The most flexible way to create a dataset is by creating examples from a list of inputs
+        and optional outputs. You can add arbitrary metadata to each example.
+
+        ```python
+        from langsmith import Client
+
+        client = Client()
+
+        examples = [
+            {
+                "inputs": {"question": "What is the largest mammal?"},
+                "outputs": {"answer": "The blue whale"},
+                "metadata": {"source": "Wikipedia"},
+            },
+            {
+                "inputs": {"question": "What do mammals and birds have in common?"},
+                "outputs": {"answer": "They are both warm-blooded"},
+                "metadata": {"source": "Wikipedia"},
+            },
+            {
+                "inputs": {"question": "What are reptiles known for?"},
+                "outputs": {"answer": "Having scales"},
+                "metadata": {"source": "Wikipedia"},
+            },
+        ]
+
+        dataset_name = "Elementary Animal Questions"
+
+        # Create the dataset
+        dataset = client.create_dataset(
+            dataset_name=dataset_name,
+            description="Questions and answers about animal phylogenetics.",
+        )
+
+        # Bulk create examples (more efficient than creating one at a time)
+        client.create_examples(
+            dataset_id=dataset.id,
+            examples=examples
+        )
+        ```
+
+        **Note:** For many examples, use `create_examples()` for bulk creation. For a single
+        example, use `create_example()`.
+
+        2️⃣ **Create Dataset from Traces**
+
+        You can create datasets from the runs (spans) of your traces by filtering runs and
+        converting them to examples.
+
+        ```python
+        from langsmith import Client
+
+        client = Client()
+        dataset_name = "Example Dataset"
+
+        # Filter runs to add to the dataset
+        runs = client.list_runs(
+            project_name="my_project",
+            is_root=True,
+            error=False,
+        )
+
+        # Create the dataset
+        dataset = client.create_dataset(
+            dataset_name=dataset_name,
+            description="An example dataset"
+        )
+
+        # Prepare inputs and outputs for bulk creation
+        examples = [
+            {"inputs": run.inputs, "outputs": run.outputs}
+            for run in runs
+        ]
+
+        # Use the bulk create_examples method
+        client.create_examples(
+            dataset_id=dataset.id,
+            examples=examples
+        )
+        ```
+
+        3️⃣ **Create Dataset from CSV File**
+
+        You can create a dataset by uploading a CSV file. Ensure your CSV has columns that
+        represent your input and output keys.
+
+        ```python
+        from langsmith import Client
+
+        client = Client()
+
+        csv_file = 'path/to/your/csvfile.csv'
+        input_keys = ['column1', 'column2']  # Replace with your input column names
+        output_keys = ['output1', 'output2']  # Replace with your output column names
+
+        dataset = client.upload_csv(
+            csv_file=csv_file,
+            input_keys=input_keys,
+            output_keys=output_keys,
+            name="My CSV Dataset",
+            description="Dataset created from a CSV file",
+            data_type="kv"  # "kv" or "chat"
+        )
+        ```
+
+        4️⃣ **Create Dataset from Pandas DataFrame (Python only)**
+
+        The Python client offers a convenience method to upload a dataset from a pandas DataFrame.
+
+        ```python
+        from langsmith import Client
+        import pandas as pd
+
+        client = Client()
+
+        # Load your data
+        df = pd.read_parquet('path/to/your/myfile.parquet')
+        # Or: df = pd.read_csv('path/to/your/myfile.csv')
+
+        input_keys = ['column1', 'column2']  # Replace with your input column names
+        output_keys = ['output1', 'output2']  # Replace with your output column names
+
+        dataset = client.upload_dataframe(
+            df=df,
+            input_keys=input_keys,
+            output_keys=output_keys,
+            name="My Parquet Dataset",
+            description="Dataset created from a parquet file",
+            data_type="kv"  # The default, can also be "chat"
+        )
+        ```
+
+        ---
+        📝 DATASET STRUCTURE
+        --------------------
+        Each example in a dataset should have:
+        - `inputs` (dict): The input data for the example
+        - `outputs` (dict, optional): The expected output data
+        - `metadata` (dict, optional): Arbitrary metadata (e.g., source, notes, tags)
+
+        ---
+        📤 RETURNS
+        ----------
+        None
+            This tool is documentation-only and returns None. The documentation is in the docstring.
+
+        ---
+        🧠 NOTES FOR AGENTS
+        --------------------
+        - This tool is **documentation-only** - it does not execute any code
+        - Use `create_examples()` for bulk operations (more efficient)
+        - Use `create_example()` for single example creation
+        - Datasets can be of type "kv" (key-value) or "chat" (conversational)
+        - Metadata is stored as a dictionary and can contain any key-value pairs
+        - Always ensure you have the required dependencies installed before using these patterns
+        - The dataset name should be unique and descriptive
+        """
+        return None
+
+    @mcp.tool()
+    def update_examples(ctx: Context = None) -> None:
+        """
+        Documentation tool for understanding how to update dataset examples in LangSmith.
+
+        This tool provides comprehensive documentation on updating examples programmatically
+        using the LangSmith Python SDK, including single example updates and bulk updates.
+
+        ---
+        🧩 PURPOSE
+        ----------
+        This is a **documentation-only tool** that explains how to:
+        - Update a single example in a dataset
+        - Bulk update multiple examples in a single request
+        - Update inputs, outputs, metadata, and splits
+
+        ---
+        📦 REQUIRED DEPENDENCIES
+        ------------------------
+        To use the functionality described in this documentation, you need:
+        - `langsmith` - The LangSmith Python client
+
+        Install with:
+        ```bash
+        pip install langsmith
+        ```
+
+        ---
+        🔧 UPDATING EXAMPLES
+        --------------------
+
+        1️⃣ **Update Single Example**
+
+        You can update a single example using the `update_example()` method. You can update
+        inputs, outputs, metadata, and split assignments.
+
+        ```python
+        from langsmith import Client
+
+        client = Client()
+
+        # Update a single example
+        client.update_example(
+            example_id=example.id,  # The example ID to update
+            inputs={"input": "updated input"},
+            outputs={"output": "updated output"},
+            metadata={"foo": "bar", "source": "updated"},
+            split="train"  # Can be a string or list of strings
+        )
+        ```
+
+        **Parameters:**
+        - `example_id` (str, required): The ID of the example to update
+        - `inputs` (dict, optional): Updated input data
+        - `outputs` (dict, optional): Updated output data
+        - `metadata` (dict, optional): Updated metadata dictionary
+        - `split` (str or list, optional): Updated split assignment(s)
+
+        2️⃣ **Bulk Update Examples**
+
+        You can update multiple examples in a single request using the `update_examples()` method.
+        This is more efficient than updating examples one at a time.
+
+        ```python
+        from langsmith import Client
+
+        client = Client()
+
+        # Update multiple examples at once
+        client.update_examples(
+            example_ids=[example.id, example_2.id],
+            inputs=[
+                {"input": "updated input 1"},
+                {"input": "updated input 2"}
+            ],
+            outputs=[
+                {"output": "updated output 1"},
+                {"output": "updated output 2"}
+            ],
+            metadata=[
+                {"foo": "baz", "source": "source1"},
+                {"foo": "qux", "source": "source2"}
+            ],
+            splits=[
+                ["training", "foo"],  # Splits can be arrays
+                "training"            # Or standalone strings
+            ]
+        )
+        ```
+
+        **Parameters:**
+        - `example_ids` (list[str], required): List of example IDs to update
+        - `inputs` (list[dict], optional): List of updated input dictionaries
+        - `outputs` (list[dict], optional): List of updated output dictionaries
+        - `metadata` (list[dict], optional): List of updated metadata dictionaries
+        - `splits` (list[str or list], optional): List of split assignments (can be strings or lists)
+
+        **Important Notes:**
+        - All list parameters must have the same length as `example_ids`
+        - Each list index corresponds to the example at the same index in `example_ids`
+        - Splits can be either a single string or a list of strings (for multiple splits)
+        - You can update any combination of fields - you don't need to provide all parameters
+
+        3️⃣ **Partial Updates**
+
+        You can update only specific fields without providing all parameters:
+
+        ```python
+        # Update only metadata for a single example
+        client.update_example(
+            example_id=example.id,
+            metadata={"updated_at": "2024-01-01", "status": "reviewed"}
+        )
+
+        # Update only outputs for multiple examples
+        client.update_examples(
+            example_ids=[example.id, example_2.id],
+            outputs=[
+                {"output": "new output 1"},
+                {"output": "new output 2"}
+            ]
+        )
+        ```
+
+        ---
+        📝 SPLIT ASSIGNMENTS
+        ---------------------
+        Examples can be assigned to one or more splits (e.g., "train", "test", "validation"):
+
+        ```python
+        # Single split
+        client.update_example(example_id=example.id, split="train")
+
+        # Multiple splits
+        client.update_example(example_id=example.id, split=["train", "validation"])
+
+        # In bulk updates, each example can have different split assignments
+        client.update_examples(
+            example_ids=[example.id, example_2.id],
+            splits=["train", ["train", "test"]]
+        )
+        ```
+
+        ---
+        📤 RETURNS
+        ----------
+        None
+            This tool is documentation-only and returns None. The documentation is in the docstring.
+
+        ---
+        🧠 NOTES FOR AGENTS
+        --------------------
+        - This tool is **documentation-only** - it does not execute any code
+        - Use `update_examples()` for bulk operations (more efficient than single updates)
+        - Use `update_example()` for single example updates
+        - All list parameters in bulk updates must match the length of `example_ids`
+        - You can update any combination of fields - partial updates are supported
+        - Splits can be strings or lists of strings (for multiple split assignments)
+        - Always ensure you have the required dependencies installed before using these patterns
+        - Example IDs can be obtained from `list_examples()` or `read_example()` methods
+        """
+        return None

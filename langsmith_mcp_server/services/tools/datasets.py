@@ -71,6 +71,9 @@ def list_datasets_tool(
                 # Format datetimes as isoformat
                 if attr in ("created_at", "modified_at") and value is not None:
                     value = value.isoformat()
+                # Convert UUIDs to strings for JSON serialization
+                elif attr == "id" and value is not None:
+                    value = str(value)
                 dataset_dict[attr] = value
             formatted_datasets.append(dataset_dict)
 
@@ -98,7 +101,7 @@ def list_examples_tool(
     Fetch examples from a LangSmith dataset.
 
     Args:
-        client: LangSmith client instance
+        client: LangSmith Client instance
         dataset_id: Dataset ID to retrieve examples from
         dataset_name: Dataset name to retrieve examples from
         example_ids: List of specific example IDs to retrieve
@@ -186,7 +189,7 @@ def read_dataset_tool(
     Read a specific dataset from LangSmith.
 
     Args:
-        client: LangSmith client instance
+        client: LangSmith Client instance
         dataset_id: Dataset ID to retrieve
         dataset_name: Dataset name to retrieve
 
@@ -248,7 +251,7 @@ def read_example_tool(
     Read a specific example from LangSmith.
 
     Args:
-        client: LangSmith client instance
+        client: LangSmith Client instance
         example_id: Example ID to retrieve
         as_of: Dataset version tag OR ISO timestamp to retrieve the example as of that version/time
 
