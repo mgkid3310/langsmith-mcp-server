@@ -6,8 +6,6 @@ from typing import List, Optional, Iterable, Union, Any
 from langsmith.schemas import Run
 from langsmith_mcp_server.common.helpers import (
     convert_uuids_to_strings,
-    filter_fields,
-    build_trace_tree,
     find_in_dict,
 )
 
@@ -237,20 +235,13 @@ def fetch_runs_tool(
     project_name: Union[str, List[str]],
     trace_id: Optional[str] = None,
     run_type: Optional[str] = None,
-    dataset_name: Optional[str] = None,
-    reference_example_id: Optional[str] = None,
-    parent_run_id: Optional[str] = None,
     error: Optional[bool] = None,
-    run_ids: Optional[List[str]] = None,
     is_root: Optional[bool] = None,
     filter: Optional[str] = None,
     trace_filter: Optional[str] = None,
     tree_filter: Optional[str] = None,
     order_by: str = "-start_time",
     limit: int = 50,
-    select: Optional[List[str]] = None,
-    show_trace_tree: bool = True,
-    trace_tree_depth: int = 0,
 ) -> Dict[str, Any]:
     """
     Fetch LangSmith runs (traces, tools, chains, etc.) from one or more projects
@@ -261,20 +252,13 @@ def fetch_runs_tool(
         project_name: The name of the project to fetch the runs from
         trace_id: The ID of the trace to fetch the runs from
         run_type: The type of the run to fetch
-        dataset_name: The name of the dataset to fetch the runs from
-        reference_example_id: The ID of the reference example to fetch the runs from
-        parent_run_id: The ID of the parent run to fetch the runs from
         error: Whether to fetch errored runs
-        run_ids: The IDs of the runs to fetch
         is_root: Whether to fetch root runs
         filter: The filter to apply to the runs
         trace_filter: The filter to apply to the trace
         tree_filter: The filter to apply to the tree
         order_by: The order by to apply to the runs
         limit: The limit to apply to the runs
-        select: The select to apply to the runs
-        show_trace_tree: Whether to show the trace tree
-        trace_tree_depth: The depth of the trace tree
     Returns:
         Dictionary containing a "runs" key with a list of run dictionaries
     """
@@ -282,11 +266,7 @@ def fetch_runs_tool(
         project_name=project_name,
         trace_id=trace_id,
         run_type=run_type,
-        dataset_name=dataset_name,
-        reference_example_id=reference_example_id,
-        parent_run_id=parent_run_id,
         error=error,
-        id=run_ids,
         is_root=is_root,
         filter=filter,
         trace_filter=trace_filter,
@@ -299,14 +279,5 @@ def fetch_runs_tool(
         run_dict = run.dict()
         # Convert UUID objects to strings for JSON serialization
         run_dict = convert_uuids_to_strings(run_dict)
-        
-        # Filter fields if select is specified
-        if select:
-            run_dict = filter_fields(run_dict, select)
-        
-        if show_trace_tree:
-            # Build simplified trace tree structure with metrics
-            run_dict = build_trace_tree(run_dict, depth=trace_tree_depth)
-        
         runs_dict.append(run_dict)
     return {"runs": runs_dict}

@@ -2,13 +2,15 @@
 
 from typing import Any, Dict
 
+from langsmith import Client
+from langchain_core.load import dumpd
 
-def list_prompts_tool(client, is_public: bool = False, limit: int = 20) -> Dict[str, Any]:
+def list_prompts_tool(client: Client, is_public: bool = False, limit: int = 20) -> Dict[str, Any]:
     """
     Fetch prompts from LangSmith with optional filtering.
 
     Args:
-        client: LangSmith client instance
+        client: LangSmith Client instance
         is_public (bool): Optional boolean to filter public/private prompts
         limit (int): Optional limit to the number of prompts to return
 
@@ -55,13 +57,13 @@ def list_prompts_tool(client, is_public: bool = False, limit: int = 20) -> Dict[
         return {"error": f"Error fetching prompts: {str(e)}"}
 
 
-def get_prompt_tool(client, prompt_name: str = None, prompt_id: str = None) -> dict:
+def get_prompt_tool(client: Client, prompt_name: str = None, prompt_id: str = None) -> dict:
     """
     Get a specific prompt (including model/tool bindings) by its name or ID, and return its full
     string representation.
 
     Args:
-        client: LangSmith client instance
+        client: LangSmith Client instance
         prompt_name: The full name of the prompt (e.g., 'owner/repo')
         prompt_id: The UUID of the prompt
 
@@ -75,8 +77,24 @@ def get_prompt_tool(client, prompt_name: str = None, prompt_id: str = None) -> d
             prompt = client.pull_prompt(prompt_identifier=prompt_id)
         else:
             return {"error": "Error: Either prompt_name or prompt_id must be provided."}
-
-        return prompt
+        # Convert prompt object to JSON-serializable dictionary
+        try:
+            # Try using model_dump() if available (Pydantic v2)
+            if hasattr(prompt, 'model_dump'):
+                return prompt.model_dump()
+            # Try using dict() method if available
+            elif hasattr(prompt, 'dict'):
+                return prompt.dict()
+            # Fall back to dumpd() from langchain_core.load
+            else:
+                return dumpd(prompt)
+        except Exception as conv_error:
+            # If conversion fails, return a basic representation
+            return {
+                "type": type(prompt).__name__,
+                "repr": repr(prompt),
+                "error": f"Could not fully serialize prompt: {str(conv_error)}"
+            }
 
     except Exception as e:
         return {"error": f"Error fetching prompt: {str(e)}"}

@@ -75,47 +75,324 @@ def register_tools(mcp: FastMCP) -> None:
         except Exception as e:
             return {"error": str(e)}
 
-    # Register conversation tools
     @mcp.tool()
-    def get_thread_history(thread_id: str, project_name: str, ctx: Context = None) -> Dict[str, Any]:
+    def push_prompt(ctx: Context = None) -> None:
         """
-        Retrieve the message history for a specific conversation thread.
+        Documentation tool for understanding how to create and push prompts to LangSmith.
 
-        Args:
-            thread_id (str): The unique ID of the thread to fetch history for
-            project_name (str): The name of the project containing the thread
-                               (format: "owner/project" or just "project")
+        This tool provides comprehensive documentation on creating ChatPromptTemplate and
+        StructuredPrompt objects and pushing them to LangSmith using the LangSmith Client.
 
-        Returns:
-            Dict[str, Any]: Dictionary containing the thread history,
-                                or an error message if the thread cannot be found
+        ---
+        🧩 PURPOSE
+        ----------
+        This is a **documentation-only tool** that explains how to:
+        - Create prompts using LangChain's prompt templates
+        - Push prompts to LangSmith for version control and management
+        - Handle prompt creation vs. version updates
+
+        ---
+        📦 REQUIRED DEPENDENCIES
+        ------------------------
+        To use the functionality described in this documentation, you need:
+        - `langsmith` - The LangSmith Python client
+        - `langchain-core` - Core LangChain functionality for prompt templates
+        - `langchain` (optional) - Required only if using `from langchain.messages` imports
+
+        Install with:
+        ```bash
+        pip install langsmith langchain-core
+        # Optional, for message classes:
+        pip install langchain
+        ```
+
+        ---
+        🔧 HOW TO PUSH PROMPTS
+        -----------------------
+        Use the LangSmith Client's `push_prompt()` method:
+
+        ```python
+        from langsmith import Client
+
+        client = Client()
+
+        url = client.push_prompt(
+            prompt_identifier="my-prompt-name",
+            object=prompt,  # Your prompt object
+            description="Optional description",
+            tags=["tag1", "tag2"],  # Optional tags
+            is_public=False,  # Optional visibility (True/False)
+        )
+        ```
+
+        **Behavior:**
+        - If the prompt name **doesn't exist**: Creates a new prompt in LangSmith
+        - If the prompt name **exists** and it's a **new version**: Creates a new commit/version
+        - If the prompt name **exists** and it's the **same version**: No new commit is created
+
+        ---
+        📝 CREATING CHATPROMPTTEMPLATE PROMPTS
+        --------------------------------------
+
+        1️⃣ **Basic ChatPromptTemplate**
+        ```python
+        from langchain_core.prompts import ChatPromptTemplate
+
+        prompt = ChatPromptTemplate.from_messages([
+            ("system", "You are a helpful AI assistant. Your name is {assistant_name}."),
+            ("human", "{user_input}"),
+        ])
+
+        client.push_prompt("my-chat-prompt", object=prompt)
+        ```
+
+        2️⃣ **Using Message Classes**
+        ```python
+        from langchain_core.prompts import ChatPromptTemplate
+        from langchain.messages import SystemMessage, HumanMessage, AIMessage
+
+        prompt = ChatPromptTemplate.from_messages([
+            SystemMessage(content="You are a coding assistant."),
+            HumanMessage(content="Write a Python function to {task}"),
+            AIMessage(content="I'll help you write that function."),
+            ("human", "Make it {style}"),
+        ])
+
+        client.push_prompt("my-message-classes-prompt", object=prompt)
+        ```
+
+        3️⃣ **With MessagesPlaceholder for Conversation History**
+        ```python
+        from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
+
+        prompt = ChatPromptTemplate.from_messages([
+            ("system", "You are a helpful assistant."),
+            MessagesPlaceholder(variable_name="conversation", optional=True),
+            ("human", "{user_input}"),
+        ])
+
+        client.push_prompt("my-conversation-prompt", object=prompt)
+        ```
+
+        4️⃣ **Complex Prompt with Multiple Placeholders**
+        ```python
+        from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
+        from langchain.messages import HumanMessage
+
+        prompt = ChatPromptTemplate.from_messages([
+            ("system", "You are {assistant_name}, a {role} assistant."),
+            MessagesPlaceholder(variable_name="chat_history", optional=True),
+            ("human", "Current question: {question}"),
+            ("ai", "Let me think about that..."),
+            MessagesPlaceholder(variable_name="tool_results", optional=True),
+            HumanMessage(content="Based on the above, what's your final answer?"),
+        ])
+
+        client.push_prompt("my-complex-prompt", object=prompt)
+        ```
+
+        ---
+        🎯 CREATING STRUCTUREDPROMPT PROMPTS
+        ------------------------------------
+
+        StructuredPrompt allows you to define output schemas for structured outputs.
+
+        1️⃣ **With Dictionary Schema (with title and description)**
+        ```python
+        from langchain_core.prompts.structured import StructuredPrompt
+
+        schema = {
+            "title": "SentimentAnalysis",
+            "description": "Analyzes the sentiment of text with confidence and reasoning",
+            "type": "object",
+            "properties": {
+                "sentiment": {
+                    "type": "string",
+                    "enum": ["positive", "negative", "neutral"],
+                    "description": "The sentiment of the text"
+                },
+                "confidence": {
+                    "type": "number",
+                    "description": "Confidence score between 0 and 1"
+                },
+                "reasoning": {
+                    "type": "string",
+                    "description": "Brief reasoning for the sentiment"
+                }
+            },
+            "required": ["sentiment", "confidence", "reasoning"],
+            "strict": True
+        }
+
+        prompt = StructuredPrompt(
+            [
+                ("system", "You are a sentiment analysis expert."),
+                ("human", "Analyze the sentiment of: {text}"),
+            ],
+            schema_=schema,
+        )
+
+        client.push_prompt("my-structured-prompt", object=prompt)
+        ```
+
+        2️⃣ **With Pydantic Model (Convert to Dict Schema)**
+        ```python
+        from langchain_core.prompts.structured import StructuredPrompt
+        from pydantic import BaseModel, Field
+
+        class UserInfo(BaseModel):
+            '''User information extracted from text.'''
+            name: str = Field(description="The user's name")
+            age: int = Field(description="The user's age")
+            email: str = Field(description="The user's email address")
+
+        # Convert Pydantic model to dict schema
+        schema_dict = UserInfo.model_json_schema()
+        # Add title and description at top level if not present
+        if "title" not in schema_dict:
+            schema_dict["title"] = UserInfo.__name__
+        if "description" not in schema_dict:
+            schema_dict["description"] = UserInfo.__doc__ or f"Schema for {UserInfo.__name__}"
+
+        prompt = StructuredPrompt(
+            [
+                ("system", "You are a helpful assistant that extracts user information."),
+                ("human", "Extract information from: {text}"),
+            ],
+            schema_=schema_dict,
+        )
+
+        client.push_prompt("my-pydantic-prompt", object=prompt)
+        ```
+
+        ---
+        🧠 HELPER FUNCTION PATTERN
+        ---------------------------
+        You can create a reusable helper function:
+
+        ```python
+        def push_prompt_to_langsmith(
+            prompt,
+            prompt_identifier: str,
+            description: str = None,
+            tags: list = None,
+            is_public: bool = None,
+        ) -> str:
+            '''
+            Push a prompt to LangSmith with optional metadata.
+            
+            Args:
+                prompt: The prompt object (ChatPromptTemplate, StructuredPrompt, etc.)
+                prompt_identifier: The name/identifier for the prompt
+                description: Optional description of the prompt
+                tags: Optional list of tags
+                is_public: Optional visibility setting (True/False)
+            
+            Returns:
+                The URL of the pushed prompt
+            '''
+            kwargs = {"object": prompt}
+            if description:
+                kwargs["description"] = description
+            if tags:
+                kwargs["tags"] = tags
+            if is_public is not None:
+                kwargs["is_public"] = is_public
+            
+            url = client.push_prompt(prompt_identifier, **kwargs)
+            return url
+        ```
+
+        ---
+        📤 RETURNS
+        ----------
+        None
+            This tool is documentation-only and returns None. The documentation is in the docstring.
+
+        ---
+        🧠 NOTES FOR AGENTS
+        --------------------
+        - This tool is **documentation-only** - it does not execute any code
+        - Use this tool to understand how to create and push prompts programmatically
+        - The `push_prompt()` method automatically handles versioning:
+          - New prompt name → creates new prompt
+          - Existing prompt name with changes → creates new version/commit
+          - Existing prompt name with no changes → no new commit
+        - Always ensure you have the required dependencies installed before using these patterns
+        - Prompt identifiers should be unique and descriptive
+        - Use tags and descriptions to organize and document your prompts
+
+        ---
+        🔐 ENVIRONMENT VARIABLES
+        -------------------------
+        Before using the LangSmith Client, make sure to set up your environment variables:
+
+        **Required:**
+        ```bash
+        export LANGSMITH_API_KEY="lsv2_pt_..."
+        ```
+
+        **Optional:**
+        ```bash
+        # Only needed if using a custom endpoint (defaults to cloud if not set)
+        export LANGSMITH_ENDPOINT="https://api.smith.langchain.com"
+
+        # Only needed if you want to specify a workspace
+        export LANGSMITH_WORKSPACE_ID="35e66a3b-2973-4830-83e1-352c43a660ed"
+        ```
+
+        You can also use a `.env` file with `python-dotenv`:
+        ```python
+        from dotenv import load_dotenv
+        load_dotenv()  # Loads variables from .env file
+
+        from langsmith import Client
+        client = Client()  # Will automatically use environment variables
+        ```
         """
-        try:
-            client = get_client_from_context(ctx)
-            return get_thread_history_tool(client, thread_id, project_name)
-        except Exception as e:
-            return {"error": str(e)}
+        return None
+
+    # Register conversation tools
+    # @mcp.tool()
+    # def get_thread_history(thread_id: str, project_name: str, ctx: Context = None) -> Dict[str, Any]:
+    #     """
+    #     Retrieve the message history for a specific conversation thread.
+
+    #     Args:
+    #         thread_id (str): The unique ID of the thread to fetch history for
+    #         project_name (str): The name of the project containing the thread
+    #                            (format: "owner/project" or just "project")
+
+    #     Returns:
+    #         Dict[str, Any]: Dictionary containing the thread history,
+    #                             or an error message if the thread cannot be found
+    #     """
+    #     try:
+    #         client = get_client_from_context(ctx)
+    #         return get_thread_history_tool(client, thread_id, project_name)
+    #     except Exception as e:
+    #         return {"error": str(e)}
 
     # Register analytics tools
-    @mcp.tool()
-    def get_project_runs_stats(project_name: str = None, trace_id: str = None, ctx: Context = None) -> Dict[str, Any]:
-        """
-        Get statistics about runs in a LangSmith project.
+    # @mcp.tool()
+    # def get_project_runs_stats(project_name: str = None, trace_id: str = None, ctx: Context = None) -> Dict[str, Any]:
+    #     """
+    #     Get statistics about runs in a LangSmith project.
 
-        Args:
-            project_name (str): The name of the project to analyze
-                              (format: "owner/project" or just "project")
-            trace_id (str): The specific ID of the trace to fetch (preferred parameter)
+    #     Args:
+    #         project_name (str): The name of the project to analyze
+    #                           (format: "owner/project" or just "project")
+    #         trace_id (str): The specific ID of the trace to fetch (preferred parameter)
 
-        Returns:
-            Dict[str, Any]: Dictionary containing the requested project run statistics
-                          or an error message if statistics cannot be retrieved
-        """
-        try:
-            client = get_client_from_context(ctx)
-            return get_project_runs_stats_tool(client, project_name, trace_id)
-        except Exception as e:
-            return {"error": str(e)}
+    #     Returns:
+    #         Dict[str, Any]: Dictionary containing the requested project run statistics
+    #                       or an error message if statistics cannot be retrieved
+    #     """
+    #     try:
+    #         client = get_client_from_context(ctx)
+    #         return get_project_runs_stats_tool(client, project_name, trace_id)
+    #     except Exception as e:
+    #         return {"error": str(e)}
 
     # # Register trace tools
     # @mcp.tool()
@@ -144,22 +421,15 @@ def register_tools(mcp: FastMCP) -> None:
     @mcp.tool()
     def fetch_runs(
         project_name: str,
-        trace_id: Optional[str] = None,
-        run_type: Optional[str] = None,
-        dataset_name: Optional[str] = None,
-        reference_example_id: Optional[str] = None,
-        parent_run_id: Optional[str] = None,
-        error: Optional[str] = None,
-        run_ids: Optional[str] = None,
-        is_root: Optional[str] = None,
-        filter: Optional[str] = None,
-        trace_filter: Optional[str] = None,
-        tree_filter: Optional[str] = None,
+        trace_id: str = None,
+        run_type: str = None,
+        error: str = None,
+        is_root: str = None,
+        filter: str = None,
+        trace_filter: str = None,
+        tree_filter: str = None,
         order_by: str = "-start_time",
-        limit: str = "50",
-        select: Optional[str] = None,
-        show_trace_tree: str = "true",
-        trace_tree_depth: str = "0",
+        limit: int = 50,
         ctx: Context = None,
     ) -> Dict[str, Any]:
         """
@@ -176,7 +446,7 @@ def register_tools(mcp: FastMCP) -> None:
         - Multiple project names or IDs
         - The **Filter Query Language (FQL)** for precise queries
         - Hierarchical filtering across trace trees
-        - Sorting, field selection, and ID-based retrieval
+        - Sorting and result limiting
 
         It returns **raw `dict` objects** suitable for further analysis or export.
 
@@ -188,26 +458,13 @@ def register_tools(mcp: FastMCP) -> None:
 
         trace_id : str, optional
             Return only runs that belong to a specific trace tree.
+            It is a UUID string, e.g. "123e4567-e89b-12d3-a456-426614174000".
 
         run_type : str, optional
             Filter runs by type (e.g. "llm", "chain", "tool", "retriever").
 
-        dataset_name : str, optional
-            Return runs associated with a specific dataset name.
-
-        reference_example_id : str, optional
-            Return runs linked to a specific dataset example (used for model comparison).
-
-        parent_run_id : str, optional
-            Return runs that are **children** of the specified run.
-            Useful for fetching agent trajectories or grouped subruns.
-
         error : str, optional
             Filter by error status: "true" for errored runs, "false" for successful runs.
-
-        run_ids : str, optional
-            Directly fetch runs by their IDs. Can be a single ID or JSON array like '["id1", "id2"]'.
-            ⚠️ If this is provided, **all other filters are ignored.**
 
         is_root : str, optional
             Filter root traces: "true" for only top-level traces, "false" to exclude roots.
@@ -265,84 +522,8 @@ def register_tools(mcp: FastMCP) -> None:
         order_by : str, default "-start_time"
             Sort field; prefix with "-" for descending order.
 
-        limit : str, default "50"
-            Maximum number of runs to return (as string, e.g., "50").
-
-        select : str, optional
-            Fields to return as JSON array string (e.g., '["id", "name", "inputs"]').
-            By default, all fields are returned.
-            
-            This function performs custom field filtering after fetching the data,
-            giving you full flexibility to select any top-level fields. Fields are
-            filtered after data conversion, so you get the complete nested structure
-            for selected fields (which can then be summarized if `show_trace_tree=True`).
-            
-            Available outer field names:
-            - "id" - Unique identifier for the span (UUID)
-            - "name" - The name associated with the run
-            - "inputs" - A map or set of inputs provided to the run
-            - "run_type" - Type of run, e.g., "llm", "chain", "tool"
-            - "start_time" - Start time of the run (datetime)
-            - "end_time" - End time of the run (datetime)
-            - "extra" - Any extra information run
-            - "error" - Error message if the run encountered an error
-            - "outputs" - A map or set of outputs generated by the run
-            - "events" - A list of event objects associated with the run (for streaming)
-            - "tags" - Tags or labels associated with the run (array of strings)
-            - "trace_id" - Unique identifier for the trace (UUID)
-            - "dotted_order" - Ordering string, hierarchical
-            - "status" - Current status of the run execution, e.g., "error", "pending", "success"
-            - "child_run_ids" - List of IDs for all child runs (array of UUIDs)
-            - "direct_child_run_ids" - List of IDs for direct children of this run (array of UUIDs)
-            - "parent_run_ids" - List of IDs for all parent runs (array of UUIDs)
-            - "parent_run_id" - ID of the parent run (UUID)
-            - "feedback_stats" - Aggregations of feedback statistics for this run
-            - "reference_example_id" - ID of a reference example associated with the run (UUID)
-            - "total_tokens" - Total number of tokens processed by the run (integer)
-            - "prompt_tokens" - Number of tokens in the prompt of the run (integer)
-            - "completion_tokens" - Number of tokens in the completion of the run (integer)
-            - "total_cost" - Total cost associated with processing the run (string)
-            - "prompt_cost" - Cost associated with the prompt part of the run (string)
-            - "completion_cost" - Cost associated with the completion of the run (string)
-            - "first_token_time" - Time when the first token was generated (datetime, for streaming LLM runs)
-            - "session_id" - Session identifier for the run, also known as the tracing project ID
-            - "in_dataset" - Indicates whether the run is included in a dataset (boolean)
-            
-            Example:
-            ```python
-            fetch_runs("my-project", select=["id", "name", "inputs", "outputs", "total_tokens"])
-            ```
-            
-            Note: When `show_trace_tree=True`, selected fields will still show the tree structure
-            with summary metrics for nested content.
-
-        show_trace_tree : str, default "true"
-            If "true", returns a simplified trace tree structure showing top-level fields
-            with metrics for nested content (field count, character count) instead of
-            full nested data. Useful for exploring large traces without loading all content.
-            If "false", returns full run data as before.
-            
-            When enabled, nested dictionaries and lists are replaced with summary objects
-            containing `_type`, `_field_count`, `_character_count`, and preview information.
-            Use `trace_tree_depth` to control how many levels of nested content are shown
-            before summarizing.
-
-        trace_tree_depth : str, default "0"
-            Controls how many levels deep to show actual content before summarizing when
-            `show_trace_tree="true"`. This allows you to explore nested structures at
-            different levels of detail (as string, e.g., "0", "1", "2").
-            
-            - "0" (default): Summarize all nested structures immediately (shows only metrics)
-            - "1": Show one level of nested content, then summarize deeper levels
-            - "2": Show two levels of nested content, then summarize deeper levels
-            - etc.
-            
-            Example:
-            ```python
-            # Show outputs with 2 levels of detail
-            fetch_runs("my-project", select='["outputs"]', 
-                    show_trace_tree="true", trace_tree_depth="2")
-            ```
+        limit : int, default 50
+            Maximum number of runs to return.
 
         ---
         📤 RETURNS
@@ -355,7 +536,7 @@ def register_tools(mcp: FastMCP) -> None:
         ------------
         1️⃣ **Get latest 10 root runs**
         ```python
-        runs = fetch_runs("alpha-project", is_root="true", limit="10")
+        runs = fetch_runs("alpha-project", is_root="true", limit=10)
         ```
 
         2️⃣ **Get all tool runs that errored**
@@ -390,40 +571,16 @@ def register_tools(mcp: FastMCP) -> None:
         runs = fetch_runs("alpha-project", filter=fql)
         ```
 
-        7️⃣ **Get specific fields with trace tree summary**
-        ```python
-        runs = fetch_runs(
-            "alpha-project",
-            select='["id", "name", "inputs", "outputs", "total_tokens", "total_cost"]',
-            show_trace_tree="true",
-            trace_tree_depth="1",  # Show 1 level deep, then summarize
-            limit="10"
-        )
-        ```
-        → Returns only selected fields with nested content shown as summary metrics.
-        
-        8️⃣ **Explore nested outputs with custom depth**
-        ```python
-        runs = fetch_runs(
-            "alpha-project",
-            select='["outputs"]',
-            show_trace_tree="true",
-            trace_tree_depth="2",  # Show 2 levels deep to see nested structure
-            limit="5"
-        )
-        ```
-        → Shows outputs with 2 levels of nested content visible before summarizing.
-
         ---
         🧠 NOTES FOR AGENTS
         --------------------
         - Use this to **query LangSmith data sources dynamically**.
         - Compose FQL strings programmatically based on your intent.
         - Combine `filter`, `trace_filter`, and `tree_filter` for hierarchical logic.
-        - Try to ALWASY use filters and trace_filter and tree_filter first before using show_trace_tree and trace_tree_depth.
         - Always verify that `project_name` matches an existing LangSmith project.
         - Returned `dict` objects have fields like:
         - `id`, `name`, `run_type`, `inputs`, `outputs`, `error`, `start_time`, `end_time`, `latency`, `metadata`, `feedback`, etc.
+        - If the trace is big, save it to a file (if you have this ability) and analyze it locally.
         """
         try:
             client = get_client_from_context(ctx)
@@ -448,53 +605,25 @@ def register_tools(mcp: FastMCP) -> None:
                 elif is_root.lower() == "false":
                     parsed_is_root = False
             
-            parsed_show_trace_tree = show_trace_tree.lower() == "true"
-            
-            # Parse list strings (JSON arrays)
-            parsed_run_ids = None
-            if run_ids is not None:
-                try:
-                    parsed_run_ids = json.loads(run_ids) if run_ids.startswith("[") else [run_ids]
-                except (json.JSONDecodeError, AttributeError):
-                    parsed_run_ids = [run_ids] if run_ids else None
-            
-            parsed_select = None
-            if select is not None:
-                try:
-                    parsed_select = json.loads(select) if select.startswith("[") else [select]
-                except (json.JSONDecodeError, AttributeError):
-                    parsed_select = [select] if select else None
-            
-            # Parse integer strings
-            parsed_limit = int(limit) if limit else 50
-            parsed_trace_tree_depth = int(trace_tree_depth) if trace_tree_depth else 0
-            
             return fetch_runs_tool(
                 client,
                 project_name=parsed_project_name,
                 trace_id=trace_id,
                 run_type=run_type,
-                dataset_name=dataset_name,
-                reference_example_id=reference_example_id,
-                parent_run_id=parent_run_id,
                 error=parsed_error,
-                run_ids=parsed_run_ids,
                 is_root=parsed_is_root,
                 filter=filter,
                 trace_filter=trace_filter,
                 tree_filter=tree_filter,
                 order_by=order_by,
-                limit=parsed_limit,
-                select=parsed_select,
-                show_trace_tree=False,
-                trace_tree_depth=5,
+                limit=limit,
             )
         except Exception as e:
             return {"error": str(e)}
 
     # Register project tools
     @mcp.tool()
-    def list_projects(limit: str = "5", project_name: str = None, more_info: str = "false", ctx: Context = None) -> Dict[str, Any]:
+    def list_projects(limit: int = 5, project_name: str = None, more_info: str = "false", ctx: Context = None) -> Dict[str, Any]:
         """
         List LangSmith projects with optional filtering and detail level control.
         
@@ -515,7 +644,7 @@ def register_tools(mcp: FastMCP) -> None:
         ---
         ⚙️ PARAMETERS
         -------------
-        limit : str, default "5"
+        limit : int, default 5
             Maximum number of projects to return (as string, e.g., "5"). This can be adjusted by agents
             or users based on their needs.
         
@@ -587,9 +716,8 @@ def register_tools(mcp: FastMCP) -> None:
         """
         try:
             client = get_client_from_context(ctx)
-            parsed_limit = int(limit) if limit else 5
             parsed_more_info = more_info.lower() == "true"
-            return list_projects_tool(client, limit=parsed_limit, project_name=project_name, more_info=parsed_more_info)
+            return list_projects_tool(client, limit=limit, project_name=project_name, more_info=parsed_more_info)
         except Exception as e:
             return {"error": str(e)}
 
@@ -601,7 +729,7 @@ def register_tools(mcp: FastMCP) -> None:
         dataset_name: Optional[str] = None,
         dataset_name_contains: Optional[str] = None,
         metadata: Optional[str] = None,
-        limit: str = "20",
+        limit: int = 20,
         ctx: Context = None,
     ) -> Dict[str, Any]:
         """
@@ -615,7 +743,7 @@ def register_tools(mcp: FastMCP) -> None:
             dataset_name (Optional[str]): Filter by exact dataset name
             dataset_name_contains (Optional[str]): Filter by substring in dataset name
             metadata (Optional[str]): Filter by metadata as JSON object string (e.g., '{"key": "value"}')
-            limit (str): Max number of datasets to return as string (default: "20")
+            limit (int): Max number of datasets to return (default: 20)
             ctx: FastMCP context (automatically provided)
 
         Returns:
@@ -641,8 +769,6 @@ def register_tools(mcp: FastMCP) -> None:
                 except (json.JSONDecodeError, AttributeError):
                     parsed_metadata = None
             
-            parsed_limit = int(limit) if limit else 20
-            
             return list_datasets_tool(
                 client,
                 dataset_ids=parsed_dataset_ids,
@@ -650,7 +776,7 @@ def register_tools(mcp: FastMCP) -> None:
                 dataset_name=dataset_name,
                 dataset_name_contains=dataset_name_contains,
                 metadata=parsed_metadata,
-                limit=parsed_limit,
+                limit=limit,
             )
         except Exception as e:
             return {"error": str(e)}
@@ -666,7 +792,7 @@ def register_tools(mcp: FastMCP) -> None:
         inline_s3_urls: Optional[str] = None,
         include_attachments: Optional[str] = None,
         as_of: Optional[str] = None,
-        limit: Optional[str] = None,
+        limit: int = 10,
         offset: Optional[str] = None,
         ctx: Context = None,
     ) -> Dict[str, Any]:
@@ -680,8 +806,8 @@ def register_tools(mcp: FastMCP) -> None:
             dataset_id (Optional[str]): Dataset ID to retrieve examples from
             dataset_name (Optional[str]): Dataset name to retrieve examples from
             example_ids (Optional[str]): Specific example IDs as JSON array string (e.g., '["id1", "id2"]') or single ID
-            limit (Optional[str]): Maximum number of examples to return as string (e.g., "10")
-            offset (Optional[str]): Number of examples to skip as string (e.g., "0")
+            limit (int): Maximum number of examples to return (default: 10)
+            offset (int): Number of examples to skip (default: 0)
             filter (Optional[str]): Filter string using LangSmith query syntax (e.g., 'has(metadata, {"key": "value"})')
             metadata (Optional[str]): Metadata to filter by as JSON object string (e.g., '{"key": "value"}')
             splits (Optional[str]): Dataset splits as JSON array string (e.g., '["train", "test"]') or single split

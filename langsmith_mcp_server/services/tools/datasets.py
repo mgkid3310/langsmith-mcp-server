@@ -3,10 +3,10 @@
 from typing import Any, Dict
 
 from langsmith_mcp_server.common.helpers import _parse_as_of_parameter
-
+from langsmith import Client
 
 def list_datasets_tool(
-    client,
+    client: Client,
     dataset_ids: list = None,
     data_type: str = None,
     dataset_name: str = None,
@@ -81,7 +81,7 @@ def list_datasets_tool(
 
 
 def list_examples_tool(
-    client,
+    client: Client,
     dataset_id: str = None,
     dataset_name: str = None,
     example_ids: list = None,
@@ -178,7 +178,7 @@ def list_examples_tool(
 
 
 def read_dataset_tool(
-    client,
+    client: Client,
     dataset_id: str = None,
     dataset_name: str = None,
 ) -> Dict[str, Any]:
@@ -240,7 +240,7 @@ def read_dataset_tool(
 
 
 def read_example_tool(
-    client,
+    client: Client,
     example_id: str,
     as_of: str = None,
 ) -> Dict[str, Any]:
