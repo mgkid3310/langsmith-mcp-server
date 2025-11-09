@@ -24,6 +24,9 @@ from langsmith_mcp_server.services.tools.traces import (
     get_thread_history_tool,
     list_projects_tool,
 )
+from langsmith_mcp_server.services.tools.experiments import (
+    list_experiments_tool,
+)
 
 
 def register_tools(mcp: FastMCP) -> None:
@@ -430,6 +433,7 @@ def register_tools(mcp: FastMCP) -> None:
         tree_filter: str = None,
         order_by: str = "-start_time",
         limit: int = 50,
+        reference_example_id: str = None,
         ctx: Context = None,
     ) -> Dict[str, Any]:
         """
@@ -525,6 +529,10 @@ def register_tools(mcp: FastMCP) -> None:
         limit : int, default 50
             Maximum number of runs to return.
 
+        reference_example_id : str, optional
+            Filter runs by reference example ID. Returns only runs associated with
+            the specified dataset example ID.
+
         ---
         📤 RETURNS
         ----------
@@ -617,19 +625,21 @@ def register_tools(mcp: FastMCP) -> None:
                 tree_filter=tree_filter,
                 order_by=order_by,
                 limit=limit,
+                reference_example_id=reference_example_id,
             )
         except Exception as e:
             return {"error": str(e)}
 
     # Register project tools
     @mcp.tool()
-    def list_projects(limit: int = 5, project_name: str = None, more_info: str = "false", ctx: Context = None) -> Dict[str, Any]:
+    def list_projects(limit: int = 5, project_name: str = None, more_info: str = "false", reference_dataset_id: str = None, reference_dataset_name: str = None, ctx: Context = None) -> Dict[str, Any]:
         """
         List LangSmith projects with optional filtering and detail level control.
         
         Fetches projects from LangSmith, optionally filtering by name and controlling
         the level of detail returned. Can return either simplified project information
         or full project details.
+        In case a dataset id or name is provided, you don't need to provide a project name.
         
         ---
         🧩 PURPOSE
@@ -659,6 +669,14 @@ def register_tools(mcp: FastMCP) -> None:
             essential fields: `name`, `project_id`, and `agent_deployment_id` (if available)
             - `"true"`: Returns full project details as returned by the LangSmith API
         
+        reference_dataset_id : str, optional
+            The ID of the reference dataset to filter projects by.
+            Either this OR `reference_dataset_name` must be provided (but not both).
+
+        reference_dataset_name : str, optional
+            The name of the reference dataset to filter projects by.
+            Either this OR `reference_dataset_id` must be provided (but not both).
+
         ---
         📤 RETURNS
         ----------
@@ -717,7 +735,125 @@ def register_tools(mcp: FastMCP) -> None:
         try:
             client = get_client_from_context(ctx)
             parsed_more_info = more_info.lower() == "true"
-            return list_projects_tool(client, limit=limit, project_name=project_name, more_info=parsed_more_info)
+            if reference_dataset_id is not None and reference_dataset_name is not None:
+                parsed_more_info = True
+            return list_projects_tool(client, limit=limit, project_name=project_name, more_info=parsed_more_info, reference_dataset_id=reference_dataset_id, reference_dataset_name=reference_dataset_name)
+        except Exception as e:
+            return {"error": str(e)}
+
+    @mcp.tool()
+    def list_experiments(
+        reference_dataset_id: Optional[str] = None,
+        reference_dataset_name: Optional[str] = None,
+        limit: int = 5,
+        project_name: Optional[str] = None,
+        ctx: Context = None,
+    ) -> Dict[str, Any]:
+        """
+        List LangSmith experiment projects (reference projects) with mandatory dataset filtering.
+
+        Fetches experiment projects from LangSmith that are associated with a specific dataset.
+        These are projects used for model evaluation and comparison. Requires either a
+        dataset ID or dataset name to filter experiments.
+
+        ---
+        🧩 PURPOSE
+        ----------
+        This function provides a convenient way to list and explore LangSmith experiment projects.
+        It supports:
+        - Filtering experiments by reference dataset (mandatory)
+        - Filtering projects by name (partial match)
+        - Limiting the number of results
+        - Automatically extracting deployment IDs from nested project data
+        - Returns simplified project information with key metrics (latency, cost, feedback stats)
+
+        ---
+        ⚙️ PARAMETERS
+        -------------
+        reference_dataset_id : str, optional
+            The ID of the reference dataset to filter experiments by.
+            Either this OR `reference_dataset_name` must be provided (but not both).
+
+        reference_dataset_name : str, optional
+            The name of the reference dataset to filter experiments by.
+            Either this OR `reference_dataset_id` must be provided (but not both).
+
+        limit : int, default 5
+            Maximum number of experiments to return. This can be adjusted by agents
+            or users based on their needs.
+
+        project_name : str, optional
+            Filter projects by name using partial matching. If provided, only projects
+            whose names contain this string will be returned.
+            Example: `project_name="Chat"` will match "Chat-LangChain", "ChatBot", etc.
+
+        ---
+        📤 RETURNS
+        ----------
+        Dict[str, Any]
+            A dictionary containing an "experiments" key with a list of simplified experiment project dictionaries:
+
+            ```python
+            {
+                "experiments": [
+                    {
+                        "name": "Experiment-Chat-LangChain",
+                        "experiment_id": "787d5165-f110-43ff-a3fb-66ea1a70c971",
+                        "feedback_stats": {...},  # Feedback statistics if available
+                        "latency_p50_seconds": 1.626,  # 50th percentile latency in seconds
+                        "latency_p99_seconds": 2.390,   # 99th percentile latency in seconds
+                        "total_cost": 0.00013005,       # Total cost in dollars
+                        "prompt_cost": 0.00002085,      # Prompt cost in dollars
+                        "completion_cost": 0.0001092,   # Completion cost in dollars
+                        "agent_deployment_id": "deployment-123"  # Only if available
+                    },
+                    ...
+                ]
+            }
+            ```
+
+        ---
+        🧪 EXAMPLES
+        ------------
+        1️⃣ **List experiments for a dataset by ID**
+        ```python
+        experiments = list_experiments(reference_dataset_id="f5ca13c6-96ad-48ba-a432-ebb6bf94528f")
+        ```
+
+        2️⃣ **List experiments for a dataset by name**
+        ```python
+        experiments = list_experiments(reference_dataset_name="my-dataset", limit=10)
+        ```
+
+        3️⃣ **Find experiments with specific name pattern**
+        ```python
+        experiments = list_experiments(
+            reference_dataset_id="f5ca13c6-96ad-48ba-a432-ebb6bf94528f",
+            project_name="Chat",
+            limit=1
+        )
+        ```
+
+        ---
+        🧠 NOTES FOR AGENTS
+        --------------------
+        - Returns simplified experiment information with key metrics (latency, cost, feedback stats)
+        - The `agent_deployment_id` field is automatically extracted from nested
+          project data when available, making it easy to identify agent deployments
+        - Experiments are filtered to include only reference projects (associated with datasets)
+        - The function uses `name_contains` for filtering, so partial matches work
+        - You must provide either `reference_dataset_id` OR `reference_dataset_name`, but not both
+        - Experiment projects are used for model evaluation and comparison across different runs
+        """
+        try:
+            client = get_client_from_context(ctx)
+            return list_experiments_tool(
+                client,
+                reference_dataset_id=reference_dataset_id,
+                reference_dataset_name=reference_dataset_name,
+                limit=limit,
+                project_name=project_name,
+            )
         except Exception as e:
             return {"error": str(e)}
 
@@ -1313,5 +1449,308 @@ def register_tools(mcp: FastMCP) -> None:
         - Splits can be strings or lists of strings (for multiple split assignments)
         - Always ensure you have the required dependencies installed before using these patterns
         - Example IDs can be obtained from `list_examples()` or `read_example()` methods
+        """
+        return None
+
+    @mcp.tool()
+    def run_experiment(ctx: Context = None) -> None:
+        """
+        Documentation tool for understanding how to run experiments and evaluations in LangSmith.
+
+        This tool provides comprehensive documentation on running evaluations using LangSmith's
+        evaluate SDK, creating custom evaluators, and using the openevals library for pre-built
+        evaluators like LLM-as-judge and trajectory evaluators.
+
+        ---
+        🧩 PURPOSE
+        ----------
+        This is a **documentation-only tool** that explains how to:
+        - Run experiments using LangSmith's `evaluate()` method
+        - Create custom evaluator functions in Python
+        - Use openevals library for pre-built evaluators
+        - Set up LLM-as-judge evaluators
+        - Use trajectory evaluators for multi-turn conversations
+
+        ---
+        📦 REQUIRED DEPENDENCIES
+        ------------------------
+        To use the functionality described in this documentation, you need:
+        - `langsmith` - The LangSmith Python client (>=0.3.13 for evaluate)
+        - `openevals` (optional) - For pre-built evaluators like LLM-as-judge
+
+        Install with:
+        ```bash
+        pip install langsmith
+        # Optional, for pre-built evaluators:
+        pip install openevals
+        ```
+
+        ---
+        🔧 RUNNING EXPERIMENTS WITH LANGSMITH
+        -------------------------------------
+
+        1️⃣ **Basic Evaluation Setup**
+
+        The `evaluate()` method runs your application on a dataset and scores outputs using evaluators.
+
+        ```python
+        from langsmith import Client, traceable, wrappers
+        from openai import OpenAI
+
+        # Step 1: Define your application
+        oai_client = wrappers.wrap_openai(OpenAI())
+
+        @traceable
+        def toxicity_classifier(inputs: dict) -> dict:
+            instructions = (
+                "Please review the user query below and determine if it contains any form of "
+                "toxic behavior, such as insults, threats, or highly negative comments. "
+                "Respond with 'Toxic' if it does and 'Not toxic' if it doesn't."
+            )
+            messages = [
+                {"role": "system", "content": instructions},
+                {"role": "user", "content": inputs["text"]},
+            ]
+            result = oai_client.chat.completions.create(
+                messages=messages, model="gpt-4o-mini", temperature=0
+            )
+            return {"class": result.choices[0].message.content}
+
+        # Step 2: Create or select a dataset
+        ls_client = Client()
+        dataset = ls_client.create_dataset(dataset_name="Toxic Queries")
+        
+        examples = [
+            {"inputs": {"text": "Shut up, idiot"}, "outputs": {"label": "Toxic"}},
+            {"inputs": {"text": "You're a wonderful person"}, "outputs": {"label": "Not toxic"}},
+        ]
+        ls_client.create_examples(dataset_id=dataset.id, examples=examples)
+
+        # Step 3: Define an evaluator
+        def correct(inputs: dict, outputs: dict, reference_outputs: dict) -> bool:
+            return outputs["class"] == reference_outputs["label"]
+
+        # Step 4: Run the evaluation
+        results = ls_client.evaluate(
+            toxicity_classifier,
+            data=dataset.name,
+            evaluators=[correct],
+            experiment_prefix="gpt-4o-mini, baseline",
+            description="Testing the baseline system.",
+            max_concurrency=4,  # Optional: parallelize evaluation
+        )
+        ```
+
+        **Key Parameters:**
+        - `target`: Your application function (takes inputs dict, returns outputs dict)
+        - `data`: Dataset name or UUID, or an iterator of examples
+        - `evaluators`: List of evaluator functions
+        - `experiment_prefix`: Optional name prefix for the experiment
+        - `description`: Optional experiment description
+        - `max_concurrency`: Optional number of parallel workers
+
+        2️⃣ **Creating Custom Evaluators**
+
+        Evaluators are functions that score your application's outputs. They receive:
+        - `inputs`: The example inputs
+        - `outputs`: Your application's actual outputs
+        - `reference_outputs`: Expected outputs (if available)
+
+        ```python
+        # Simple boolean evaluator
+        def correct(inputs: dict, outputs: dict, reference_outputs: dict) -> bool:
+            return outputs["class"] == reference_outputs["label"]
+
+        # Evaluator with score and comment
+        def correctness_with_feedback(
+            inputs: dict, outputs: dict, reference_outputs: dict
+        ) -> dict:
+            is_correct = outputs["class"] == reference_outputs["label"]
+            comment = "Match" if is_correct else "Mismatch"
+            return {
+                "key": "correctness",
+                "score": is_correct,
+                "comment": comment
+            }
+
+        # Evaluator that returns a float score
+        def similarity_score(
+            inputs: dict, outputs: dict, reference_outputs: dict
+        ) -> float:
+            # Calculate some similarity metric (0.0 to 1.0)
+            return 0.85
+        ```
+
+        **Evaluator Return Types:**
+        - `bool`: Binary score (True/False)
+        - `float`: Numeric score (0.0 to 1.0)
+        - `dict`: Full result with `key`, `score`, and optional `comment`
+
+        ---
+        🎯 USING OPENEVALS FOR PRE-BUILT EVALUATORS
+        -------------------------------------------
+
+        The `openevals` library provides pre-built evaluators that you can use out of the box.
+
+        1️⃣ **LLM-as-Judge Evaluators**
+
+        Use an LLM to judge your application's outputs. This is useful when you need subjective
+        evaluation or don't have reference outputs.
+
+        ```python
+        from openevals.llm import create_llm_as_judge
+        from openevals.prompts import CORRECTNESS_PROMPT, CONCISENESS_PROMPT
+
+        # Correctness evaluator (requires reference outputs)
+        correctness_evaluator = create_llm_as_judge(
+            prompt=CORRECTNESS_PROMPT,
+            feedback_key="correctness",
+            model="openai:o3-mini",
+        )
+
+        # Conciseness evaluator (no reference needed)
+        conciseness_evaluator = create_llm_as_judge(
+            prompt=CONCISENESS_PROMPT,
+            feedback_key="conciseness",
+            model="openai:o3-mini",
+        )
+
+        # Use with LangSmith evaluate
+        def wrapped_correctness_evaluator(inputs, outputs, reference_outputs):
+            return correctness_evaluator(
+                inputs=inputs,
+                outputs=outputs,
+                reference_outputs=reference_outputs
+            )
+
+        results = ls_client.evaluate(
+            toxicity_classifier,
+            data=dataset.name,
+            evaluators=[wrapped_correctness_evaluator],
+        )
+        ```
+
+        **Pre-built Prompts Available:**
+        - `CORRECTNESS_PROMPT`: Evaluates correctness against reference outputs
+        - `CONCISENESS_PROMPT`: Evaluates how concise the output is
+        - `HALLUCINATION_PROMPT`: Checks for hallucinations (requires context)
+        - `RAG_HELPFULNESS_PROMPT`: For RAG applications
+        - `RAG_GROUNDEDNESS_PROMPT`: Checks if output is grounded in context
+        - `RAG_RETRIEVAL_RELEVANCE_PROMPT`: Evaluates retrieval quality
+
+        2️⃣ **Custom LLM-as-Judge with Custom Prompts**
+
+        You can create custom LLM-as-judge evaluators with your own prompts:
+
+        ```python
+        from openevals.llm import create_llm_as_judge
+
+        CUSTOM_PROMPT = '''
+        You are an expert evaluator. Rate the output quality on a scale of 0-1.
+        
+        <input>
+        {inputs}
+        </input>
+        
+        <output>
+        {outputs}
+        </output>
+        
+        <reference>
+        {reference_outputs}
+        </reference>
+        '''
+
+        custom_evaluator = create_llm_as_judge(
+            prompt=CUSTOM_PROMPT,
+            feedback_key="quality",
+            model="openai:o3-mini",
+            continuous=True,  # Returns float (0.0-1.0) instead of boolean
+        )
+        ```
+
+        3️⃣ **Trajectory Evaluators for Multi-turn Conversations**
+
+        Trajectory evaluators evaluate entire conversation threads, useful for chat applications
+        and agents:
+
+        ```python
+        from openevals.llm import create_llm_as_judge
+
+        # Create a trajectory evaluator that looks at the full conversation
+        trajectory_evaluator = create_llm_as_judge(
+            model="openai:o3-mini",
+            prompt="Based on the below conversation, was the user satisfied?\\n{outputs}",
+            feedback_key="satisfaction",
+        )
+
+        # When using with evaluate, the outputs will be the full conversation trajectory
+        def wrapped_trajectory_evaluator(inputs, outputs, reference_outputs):
+            # outputs here will be a list of messages representing the conversation
+            return trajectory_evaluator(outputs=outputs)
+        ```
+
+        4️⃣ **Other Pre-built Evaluators**
+
+        OpenEvals also provides evaluators for:
+        - **Exact Match**: Compare outputs exactly
+        - **Embedding Similarity**: Compare using embeddings
+        - **Levenshtein Distance**: String similarity
+        - **Code Evaluators**: Type checking, execution (requires additional setup)
+
+        ```python
+        from openevals.exact import exact_match
+
+        # Simple exact match evaluator
+        def exact_match_evaluator(inputs, outputs, reference_outputs):
+            return exact_match(outputs=outputs, reference_outputs=reference_outputs)
+        ```
+
+        ---
+        📝 EVALUATOR WRAPPER PATTERN
+        -----------------------------
+        When using openevals evaluators with LangSmith's `evaluate()`, you may need to wrap them
+        to match the expected signature:
+
+        ```python
+        def wrap_openevals_evaluator(openevals_evaluator):
+            def wrapped(inputs, outputs, reference_outputs):
+                # openevals evaluators may have different parameter names
+                result = openevals_evaluator(
+                    inputs=inputs,
+                    outputs=outputs,
+                    reference_outputs=reference_outputs
+                )
+                return result
+            return wrapped
+
+        # Usage
+        wrapped_evaluator = wrap_openevals_evaluator(correctness_evaluator)
+        results = ls_client.evaluate(
+            app_function,
+            data=dataset.name,
+            evaluators=[wrapped_evaluator],
+        )
+        ```
+
+        ---
+        📤 RETURNS
+        ----------
+        None
+            This tool is documentation-only and returns None. The documentation is in the docstring.
+
+        ---
+        🧠 NOTES FOR AGENTS
+        --------------------
+        - This tool is **documentation-only** - it does not execute any code
+        - Use `evaluate()` for synchronous evaluation, `aevaluate()` for async (better for large jobs)
+        - Set `max_concurrency` to parallelize evaluation across multiple workers
+        - Custom evaluators can return bool, float, or dict with `key`, `score`, `comment`
+        - OpenEvals evaluators are pre-built and tested - use them when possible
+        - LLM-as-judge evaluators are flexible but cost money (API calls to judge model)
+        - Trajectory evaluators are useful for multi-turn conversations and agent evaluation
+        - Always ensure you have the required dependencies installed before using these patterns
+        - For agent-specific evaluations, consider using the `agentevals` package
+        - Evaluation results are stored as feedback in LangSmith and can be viewed in the UI
         """
         return None

@@ -192,16 +192,24 @@ def get_project_runs_stats_tool(
         return {"error": f"Error getting project runs stats: {str(e)}"}
 
 
-def list_projects_tool(client: Client, limit: int = 5, project_name: str = None, more_info: bool = False) -> Dict[str, Any]:
+def list_projects_tool(
+    client: Client,
+    limit: int = 5,
+    project_name: str = None,
+    more_info: bool = False,
+    reference_dataset_id: str = None,
+    reference_dataset_name: str = None,
+) -> Dict[str, Any]:
     """
     List projects from LangSmith.
 
     Args:
-        client: LangSmith client instance
+        client: LangSmith Client instance
         limit: Maximum number of projects to return (default: 5)
         project_name: Filter projects by name
         more_info: Return more detailed project information (default: False)
-    
+        reference_dataset_id: Filter projects by reference dataset ID
+        reference_dataset_name: Filter projects by reference dataset name
     Returns:
         Dictionary containing a "projects" key with a list of project dictionaries
     """
@@ -210,6 +218,8 @@ def list_projects_tool(client: Client, limit: int = 5, project_name: str = None,
         reference_free=True,
         name_contains=project_name,
         limit=limit,  # this can be set by the agent
+        reference_dataset_id=reference_dataset_id,
+        reference_dataset_name=reference_dataset_name,
     ):
         projects.append(project.dict())
 
@@ -242,6 +252,7 @@ def fetch_runs_tool(
     tree_filter: Optional[str] = None,
     order_by: str = "-start_time",
     limit: int = 50,
+    reference_example_id: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     Fetch LangSmith runs (traces, tools, chains, etc.) from one or more projects
@@ -259,6 +270,7 @@ def fetch_runs_tool(
         tree_filter: The filter to apply to the tree
         order_by: The order by to apply to the runs
         limit: The limit to apply to the runs
+        reference_example_id: The ID of the reference example to filter runs by
     Returns:
         Dictionary containing a "runs" key with a list of run dictionaries
     """
@@ -273,6 +285,7 @@ def fetch_runs_tool(
         tree_filter=tree_filter,
         order_by=order_by,
         limit=limit,
+        reference_example_id=reference_example_id,
     )
     runs_dict = []
     for run in runs_iter:
