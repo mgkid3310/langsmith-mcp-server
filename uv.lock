@@ -658,7 +658,7 @@ wheels = [
 
 [[package]]
 name = "langsmith-mcp-server"
-version = "0.0.7"
+version = "0.0.9"
 source = { editable = "." }
 dependencies = [
     { name = "fastmcp" },

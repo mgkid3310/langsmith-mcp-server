@@ -1,7 +1,7 @@
 """Registration module for LangSmith MCP tools."""
 
 import json
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, Optional
 
 from fastmcp import FastMCP
 from fastmcp.server import Context
@@ -13,19 +13,16 @@ from langsmith_mcp_server.services.tools.datasets import (
     read_dataset_tool,
     read_example_tool,
 )
+from langsmith_mcp_server.services.tools.experiments import (
+    list_experiments_tool,
+)
 from langsmith_mcp_server.services.tools.prompts import (
     get_prompt_tool,
     list_prompts_tool,
 )
 from langsmith_mcp_server.services.tools.traces import (
     fetch_runs_tool,
-    fetch_trace_tool,
-    get_project_runs_stats_tool,
-    get_thread_history_tool,
     list_projects_tool,
-)
-from langsmith_mcp_server.services.tools.experiments import (
-    list_experiments_tool,
 )
 
 
@@ -40,7 +37,9 @@ def register_tools(mcp: FastMCP) -> None:
     """
 
     @mcp.tool()
-    def list_prompts(is_public: str = "false", limit: int = 20, ctx: Context = None) -> Dict[str, Any]:
+    def list_prompts(
+        is_public: str = "false", limit: int = 20, ctx: Context = None
+    ) -> Dict[str, Any]:
         """
         Fetch prompts from LangSmith with optional filtering.
 
@@ -283,14 +282,14 @@ def register_tools(mcp: FastMCP) -> None:
         ) -> str:
             '''
             Push a prompt to LangSmith with optional metadata.
-            
+
             Args:
                 prompt: The prompt object (ChatPromptTemplate, StructuredPrompt, etc.)
                 prompt_identifier: The name/identifier for the prompt
                 description: Optional description of the prompt
                 tags: Optional list of tags
                 is_public: Optional visibility setting (True/False)
-            
+
             Returns:
                 The URL of the pushed prompt
             '''
@@ -301,7 +300,7 @@ def register_tools(mcp: FastMCP) -> None:
                 kwargs["tags"] = tags
             if is_public is not None:
                 kwargs["is_public"] = is_public
-            
+
             url = client.push_prompt(prompt_identifier, **kwargs)
             return url
         ```
@@ -352,7 +351,7 @@ def register_tools(mcp: FastMCP) -> None:
         from langsmith import Client
         client = Client()  # Will automatically use environment variables
         ```
-        """
+        """  # noqa: W293
         return None
 
     # Register conversation tools
@@ -589,10 +588,10 @@ def register_tools(mcp: FastMCP) -> None:
         - Returned `dict` objects have fields like:
         - `id`, `name`, `run_type`, `inputs`, `outputs`, `error`, `start_time`, `end_time`, `latency`, `metadata`, `feedback`, etc.
         - If the trace is big, save it to a file (if you have this ability) and analyze it locally.
-        """
+        """  # noqa: W293
         try:
             client = get_client_from_context(ctx)
-            
+
             # Parse project_name - can be a single string or JSON array
             parsed_project_name = project_name
             if project_name and project_name.startswith("["):
@@ -600,19 +599,21 @@ def register_tools(mcp: FastMCP) -> None:
                     parsed_project_name = json.loads(project_name)
                 except json.JSONDecodeError:
                     pass  # Use as-is if not valid JSON
-            
+
             # Parse boolean strings
             parsed_error = None
             if error is not None:
-                parsed_error = error.lower() == "true" if error.lower() in ("true", "false") else None
-            
+                parsed_error = (
+                    error.lower() == "true" if error.lower() in ("true", "false") else None
+                )
+
             parsed_is_root = None
             if is_root is not None:
                 if is_root.lower() == "true":
                     parsed_is_root = True
                 elif is_root.lower() == "false":
                     parsed_is_root = False
-            
+
             return fetch_runs_tool(
                 client,
                 project_name=parsed_project_name,
@@ -632,15 +633,22 @@ def register_tools(mcp: FastMCP) -> None:
 
     # Register project tools
     @mcp.tool()
-    def list_projects(limit: int = 5, project_name: str = None, more_info: str = "false", reference_dataset_id: str = None, reference_dataset_name: str = None, ctx: Context = None) -> Dict[str, Any]:
+    def list_projects(
+        limit: int = 5,
+        project_name: str = None,
+        more_info: str = "false",
+        reference_dataset_id: str = None,
+        reference_dataset_name: str = None,
+        ctx: Context = None,
+    ) -> Dict[str, Any]:
         """
         List LangSmith projects with optional filtering and detail level control.
-        
+
         Fetches projects from LangSmith, optionally filtering by name and controlling
         the level of detail returned. Can return either simplified project information
         or full project details.
         In case a dataset id or name is provided, you don't need to provide a project name.
-        
+
         ---
         🧩 PURPOSE
         ----------
@@ -650,25 +658,25 @@ def register_tools(mcp: FastMCP) -> None:
         - Limiting the number of results
         - Choosing between simplified or full project information
         - Automatically extracting deployment IDs from nested project data
-        
+
         ---
         ⚙️ PARAMETERS
         -------------
         limit : int, default 5
             Maximum number of projects to return (as string, e.g., "5"). This can be adjusted by agents
             or users based on their needs.
-        
+
         project_name : str, optional
             Filter projects by name using partial matching. If provided, only projects
             whose names contain this string will be returned.
             Example: `project_name="Chat"` will match "Chat-LangChain", "ChatBot", etc.
-        
+
         more_info : str, default "false"
             Controls the level of detail returned:
             - `"false"` (default): Returns simplified project information with only
             essential fields: `name`, `project_id`, and `agent_deployment_id` (if available)
             - `"true"`: Returns full project details as returned by the LangSmith API
-        
+
         reference_dataset_id : str, optional
             The ID of the reference dataset to filter projects by.
             Either this OR `reference_dataset_name` must be provided (but not both).
@@ -682,7 +690,7 @@ def register_tools(mcp: FastMCP) -> None:
         ----------
         List[dict]
             A list of project dictionaries. The structure depends on `more_info`:
-            
+
             **When `more_info=False` (simplified):**
             ```python
             [
@@ -694,11 +702,11 @@ def register_tools(mcp: FastMCP) -> None:
                 ...
             ]
             ```
-            
+
             **When `more_info=True` (full details):**
             Returns complete project objects with all fields from the LangSmith API,
             including metadata, settings, statistics, and nested structures.
-        
+
         ---
         🧪 EXAMPLES
         ------------
@@ -706,22 +714,22 @@ def register_tools(mcp: FastMCP) -> None:
         ```python
         projects = list_projects(limit="5")
         ```
-        
+
         2️⃣ **Search for projects with "Chat" in the name**
         ```python
         projects = list_projects(project_name="Chat", limit="10")
         ```
-        
+
         3️⃣ **Get full project details**
         ```python
         projects = list_projects(limit="3", more_info="true")
         ```
-        
+
         4️⃣ **Find a specific project with full details**
         ```python
         projects = list_projects(project_name="MyProject", more_info="true", limit="1")
         ```
-        
+
         ---
         🧠 NOTES FOR AGENTS
         --------------------
@@ -731,13 +739,20 @@ def register_tools(mcp: FastMCP) -> None:
         project data when available, making it easy to identify agent deployments
         - Projects are filtered to exclude reference projects by default
         - The function uses `name_contains` for filtering, so partial matches work
-        """
+        """  # noqa: W293
         try:
             client = get_client_from_context(ctx)
             parsed_more_info = more_info.lower() == "true"
             if reference_dataset_id is not None and reference_dataset_name is not None:
                 parsed_more_info = True
-            return list_projects_tool(client, limit=limit, project_name=project_name, more_info=parsed_more_info, reference_dataset_id=reference_dataset_id, reference_dataset_name=reference_dataset_name)
+            return list_projects_tool(
+                client,
+                limit=limit,
+                project_name=project_name,
+                more_info=parsed_more_info,
+                reference_dataset_id=reference_dataset_id,
+                reference_dataset_name=reference_dataset_name,
+            )
         except Exception as e:
             return {"error": str(e)}
 
@@ -844,7 +859,7 @@ def register_tools(mcp: FastMCP) -> None:
         - The function uses `name_contains` for filtering, so partial matches work
         - You must provide either `reference_dataset_id` OR `reference_dataset_name`, but not both
         - Experiment projects are used for model evaluation and comparison across different runs
-        """
+        """  # noqa: W293
         try:
             client = get_client_from_context(ctx)
             return list_experiments_tool(
@@ -885,18 +900,20 @@ def register_tools(mcp: FastMCP) -> None:
         Returns:
             Dict[str, Any]: Dictionary containing the datasets and metadata,
                             or an error message if the datasets cannot be retrieved
-        """
+        """  # noqa: W293
         try:
             client = get_client_from_context(ctx)
-            
+
             # Parse list strings (JSON arrays)
             parsed_dataset_ids = None
             if dataset_ids is not None:
                 try:
-                    parsed_dataset_ids = json.loads(dataset_ids) if dataset_ids.startswith("[") else [dataset_ids]
+                    parsed_dataset_ids = (
+                        json.loads(dataset_ids) if dataset_ids.startswith("[") else [dataset_ids]
+                    )
                 except (json.JSONDecodeError, AttributeError):
                     parsed_dataset_ids = [dataset_ids] if dataset_ids else None
-            
+
             # Parse metadata (JSON object)
             parsed_metadata = None
             if metadata is not None:
@@ -904,7 +921,7 @@ def register_tools(mcp: FastMCP) -> None:
                     parsed_metadata = json.loads(metadata) if metadata.startswith("{") else None
                 except (json.JSONDecodeError, AttributeError):
                     parsed_metadata = None
-            
+
             return list_datasets_tool(
                 client,
                 dataset_ids=parsed_dataset_ids,
@@ -955,25 +972,27 @@ def register_tools(mcp: FastMCP) -> None:
         Returns:
             Dict[str, Any]: Dictionary containing the examples and metadata,
                             or an error message if the examples cannot be retrieved
-        """
+        """  # noqa: W293
         try:
             client = get_client_from_context(ctx)
-            
+
             # Parse list strings (JSON arrays)
             parsed_example_ids = None
             if example_ids is not None:
                 try:
-                    parsed_example_ids = json.loads(example_ids) if example_ids.startswith("[") else [example_ids]
+                    parsed_example_ids = (
+                        json.loads(example_ids) if example_ids.startswith("[") else [example_ids]
+                    )
                 except (json.JSONDecodeError, AttributeError):
                     parsed_example_ids = [example_ids] if example_ids else None
-            
+
             parsed_splits = None
             if splits is not None:
                 try:
                     parsed_splits = json.loads(splits) if splits.startswith("[") else [splits]
                 except (json.JSONDecodeError, AttributeError):
                     parsed_splits = [splits] if splits else None
-            
+
             # Parse metadata (JSON object)
             parsed_metadata = None
             if metadata is not None:
@@ -981,20 +1000,20 @@ def register_tools(mcp: FastMCP) -> None:
                     parsed_metadata = json.loads(metadata) if metadata.startswith("{") else None
                 except (json.JSONDecodeError, AttributeError):
                     parsed_metadata = None
-            
+
             # Parse boolean strings
             parsed_inline_s3_urls = None
             if inline_s3_urls is not None:
                 parsed_inline_s3_urls = inline_s3_urls.lower() == "true"
-            
+
             parsed_include_attachments = None
             if include_attachments is not None:
                 parsed_include_attachments = include_attachments.lower() == "true"
-            
+
             # Parse integer strings
             parsed_limit = int(limit) if limit else None
             parsed_offset = int(offset) if offset else None
-            
+
             return list_examples_tool(
                 client,
                 dataset_id=dataset_id,
@@ -1286,7 +1305,7 @@ def register_tools(mcp: FastMCP) -> None:
         - Metadata is stored as a dictionary and can contain any key-value pairs
         - Always ensure you have the required dependencies installed before using these patterns
         - The dataset name should be unique and descriptive
-        """
+        """  # noqa: W293
         return None
 
     @mcp.tool()
@@ -1519,7 +1538,7 @@ def register_tools(mcp: FastMCP) -> None:
         # Step 2: Create or select a dataset
         ls_client = Client()
         dataset = ls_client.create_dataset(dataset_name="Toxic Queries")
-        
+
         examples = [
             {"inputs": {"text": "Shut up, idiot"}, "outputs": {"label": "Toxic"}},
             {"inputs": {"text": "You're a wonderful person"}, "outputs": {"label": "Not toxic"}},
@@ -1647,15 +1666,15 @@ def register_tools(mcp: FastMCP) -> None:
 
         CUSTOM_PROMPT = '''
         You are an expert evaluator. Rate the output quality on a scale of 0-1.
-        
+
         <input>
         {inputs}
         </input>
-        
+
         <output>
         {outputs}
         </output>
-        
+
         <reference>
         {reference_outputs}
         </reference>
@@ -1752,5 +1771,5 @@ def register_tools(mcp: FastMCP) -> None:
         - Always ensure you have the required dependencies installed before using these patterns
         - For agent-specific evaluations, consider using the `agentevals` package
         - Evaluation results are stored as feedback in LangSmith and can be viewed in the UI
-        """
+        """  # noqa: W293
         return None

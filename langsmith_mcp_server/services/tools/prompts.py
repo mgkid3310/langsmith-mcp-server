@@ -2,8 +2,9 @@
 
 from typing import Any, Dict
 
-from langsmith import Client
 from langchain_core.load import dumpd
+from langsmith import Client
+
 
 def list_prompts_tool(client: Client, is_public: bool = False, limit: int = 20) -> Dict[str, Any]:
     """
@@ -80,10 +81,10 @@ def get_prompt_tool(client: Client, prompt_name: str = None, prompt_id: str = No
         # Convert prompt object to JSON-serializable dictionary
         try:
             # Try using model_dump() if available (Pydantic v2)
-            if hasattr(prompt, 'model_dump'):
+            if hasattr(prompt, "model_dump"):
                 return prompt.model_dump()
             # Try using dict() method if available
-            elif hasattr(prompt, 'dict'):
+            elif hasattr(prompt, "dict"):
                 return prompt.dict()
             # Fall back to dumpd() from langchain_core.load
             else:
@@ -93,7 +94,7 @@ def get_prompt_tool(client: Client, prompt_name: str = None, prompt_id: str = No
             return {
                 "type": type(prompt).__name__,
                 "repr": repr(prompt),
-                "error": f"Could not fully serialize prompt: {str(conv_error)}"
+                "error": f"Could not fully serialize prompt: {str(conv_error)}",
             }
 
     except Exception as e:

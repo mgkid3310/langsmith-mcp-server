@@ -3,97 +3,106 @@
 import os
 import re
 from datetime import datetime
-from typing import Any, Optional, Union, List
-from uuid import UUID
 from decimal import Decimal
+from typing import Any, List, Optional, Union
+from uuid import UUID
 
 from fastmcp.server import Context
 from langsmith import Client
 
 
-def get_langsmith_client_from_api_key(api_key: str, workspace_id: Optional[str] = None, endpoint: Optional[str] = None) -> Client:
+def get_langsmith_client_from_api_key(
+    api_key: str, workspace_id: Optional[str] = None, endpoint: Optional[str] = None
+) -> Client:
     """
     Create a LangSmith client from an API key and optional configuration.
-    
+
     Args:
         api_key: The LangSmith API key (required)
         workspace_id: Optional workspace ID for API keys scoped to multiple workspaces
         endpoint: Optional custom endpoint URL (e.g., for self-hosted installations or EU region)
-        
+
     Returns:
         LangSmith Client instance
-    """
+    """  # noqa: W293
     # Set environment variables for LangSmith client (some SDK operations read from env)
     os.environ["LANGSMITH_API_KEY"] = api_key
     if workspace_id:
         os.environ["LANGSMITH_WORKSPACE_ID"] = workspace_id
     if endpoint:
         os.environ["LANGSMITH_ENDPOINT"] = endpoint
-    
+
     # Initialize the LangSmith client with parameters
     client_kwargs = {"api_key": api_key}
     if workspace_id:
         client_kwargs["workspace_id"] = workspace_id
     if endpoint:
         client_kwargs["api_url"] = endpoint
-    
+
     return Client(**client_kwargs)
 
 
 def get_client_from_context(ctx: Context) -> Client:
     """
     Get LangSmith client from API key and optional config using FastMCP context.
-    
+
     Supports both HTTP and STDIO transports:
     - HTTP: Config extracted from headers (LANGSMITH-API-KEY, etc.) and stored in session
     - STDIO: Config read from environment variables (LANGSMITH_API_KEY, etc.)
-    
+
     On first HTTP request, config is extracted from headers and stored in session.
     On subsequent HTTP requests, config is retrieved from session state.
     For STDIO, config is always read from environment variables.
-    
+
     Args:
         ctx: FastMCP context (automatically provided to tools)
-        
+
     Returns:
         LangSmith Client instance
-        
+
     Raises:
         ValueError: If API key is not found in headers (HTTP) or environment (STDIO)
-    """
+    """  # noqa: W293
     # Try to get config from session state (set on first HTTP request)
     api_key = ctx.get_state("api_key")
     workspace_id = ctx.get_state("workspace_id") or None
     endpoint = ctx.get_state("endpoint") or None
-    
+
     # If not in session, try to get from request headers (HTTP transport)
     if not api_key:
-        request = ctx.get_http_request()
-        if request:
-            # HTTP transport: get from headers
-            api_key = request.headers.get("LANGSMITH-API-KEY")
-            workspace_id = request.headers.get("LANGSMITH-WORKSPACE-ID") or None
-            endpoint = request.headers.get("LANGSMITH-ENDPOINT") or None
-            
-            # Store in session for future requests
-            if api_key:
-                ctx.set_state("api_key", api_key)
-                if workspace_id:
-                    ctx.set_state("workspace_id", workspace_id)
-                if endpoint:
-                    ctx.set_state("endpoint", endpoint)
-        else:
+        try:
+            request = ctx.get_http_request()
+            if request:
+                # HTTP transport: get from headers
+                api_key = request.headers.get("LANGSMITH-API-KEY")
+                workspace_id = request.headers.get("LANGSMITH-WORKSPACE-ID") or None
+                endpoint = request.headers.get("LANGSMITH-ENDPOINT") or None
+
+                # Store in session for future requests
+                if api_key:
+                    ctx.set_state("api_key", api_key)
+                    if workspace_id:
+                        ctx.set_state("workspace_id", workspace_id)
+                    if endpoint:
+                        ctx.set_state("endpoint", endpoint)
+        except (RuntimeError, Exception):
+            # STDIO transport: get_http_request() raises exception when no active HTTP request
+            # Fall through to get from environment variables
+            pass
+
+        # If still no api_key (either request was None or we caught exception), try environment
+        if not api_key:
             # STDIO transport: get from environment variables
             api_key = os.environ.get("LANGSMITH_API_KEY")
             workspace_id = os.environ.get("LANGSMITH_WORKSPACE_ID") or None
             endpoint = os.environ.get("LANGSMITH_ENDPOINT") or None
-    
+
     if not api_key:
         raise ValueError(
             "API key not found. For HTTP transport, provide LANGSMITH-API-KEY header. "
             "For STDIO transport, set LANGSMITH_API_KEY environment variable."
         )
-    
+
     return get_langsmith_client_from_api_key(api_key, workspace_id=workspace_id, endpoint=endpoint)
 
 
@@ -106,7 +115,7 @@ def get_langgraph_app_host_name(run_stats: dict) -> Optional[str]:
 
     Returns:
         str | None: The langgraph app host name
-    """
+    """  # noqa: W293
     if run_stats and run_stats.get("run_facets"):
         for run_facet in run_stats["run_facets"]:
             try:
@@ -129,7 +138,7 @@ def _parse_as_of_parameter(as_of: str) -> Union[datetime, str]:
 
     Returns:
         datetime object if as_of is a valid ISO timestamp, otherwise the original string
-    """
+    """  # noqa: W293
     try:
         # Try to parse as ISO format datetime
         return datetime.fromisoformat(as_of.replace("Z", "+00:00"))
@@ -137,30 +146,31 @@ def _parse_as_of_parameter(as_of: str) -> Union[datetime, str]:
         # If parsing fails, assume it's a version tag and return as string
         return as_of
 
+
 def find_in_dict(data, key):
     """
     Recursively search for a key in a nested dictionary or list.
-    
+
     This helper function traverses nested data structures to find a specific key,
     searching through dictionaries and lists at any depth level.
-    
+
     ---
     ⚙️ PARAMETERS
     -------------
     data : dict | list | Any
         The data structure to search in. Can be a dictionary, list, or any nested
         combination of these types.
-    
+
     key : str
         The key to search for in the data structure.
-    
+
     ---
     📤 RETURNS
     ----------
     Any | None
         The value associated with the key if found, otherwise None.
         Returns the first occurrence found during depth-first traversal.
-    
+
     ---
     🧪 EXAMPLES
     ------------
@@ -173,7 +183,7 @@ def find_in_dict(data, key):
     }
     result = find_in_dict(data, "deployment_id")  # Returns "123-456"
     ```
-    """
+    """  # noqa: W293
     if isinstance(data, dict):
         if key in data:
             return data[key]
@@ -188,10 +198,11 @@ def find_in_dict(data, key):
                 return result
     return None
 
+
 def convert_uuids_to_strings(obj: Any) -> Any:
     """
     Recursively convert UUID, datetime, and Decimal objects to strings in dictionaries, lists, and other structures.
-    """
+    """  # noqa: W293
     if isinstance(obj, UUID):
         return str(obj)
     elif isinstance(obj, datetime):
@@ -207,10 +218,11 @@ def convert_uuids_to_strings(obj: Any) -> Any:
     else:
         return obj
 
+
 def count_characters(obj: Any) -> int:
     """
     Recursively count the total number of characters in a data structure.
-    """
+    """  # noqa: W293
     if isinstance(obj, str):
         return len(obj)
     elif isinstance(obj, dict):
@@ -221,10 +233,11 @@ def count_characters(obj: Any) -> int:
         # For other types, convert to string and count
         return len(str(obj))
 
+
 def count_fields(obj: Any) -> int:
     """
     Recursively count the total number of fields/keys in a data structure.
-    """
+    """  # noqa: W293
     if isinstance(obj, dict):
         return len(obj) + sum(count_fields(value) for value in obj.values())
     elif isinstance(obj, (list, tuple)):
@@ -232,24 +245,26 @@ def count_fields(obj: Any) -> int:
     else:
         return 0
 
+
 def filter_fields(run_dict: dict, select: Optional[List[str]]) -> dict:
     """
     Filter a run dictionary to only include selected fields.
     If select is None or empty, returns the full dictionary.
-    """
+    """  # noqa: W293
     if not select:
         return run_dict
-    
+
     filtered = {}
     for field in select:
         if field in run_dict:
             filtered[field] = run_dict[field]
     return filtered
 
+
 def build_trace_tree(run_dict: dict, depth: int = 0) -> dict:
     """
     Build a simplified trace tree structure showing top-level fields with metrics for nested content.
-    
+
     Args:
         run_dict: The dictionary to build a tree from
         depth: How many levels deep to show actual content before summarizing.
@@ -257,7 +272,7 @@ def build_trace_tree(run_dict: dict, depth: int = 0) -> dict:
                1 = show one level deep, then summarize
                2 = show two levels deep, then summarize
                etc.
-    """
+    """  # noqa: W293
     tree = {}
     for key, value in run_dict.items():
         if isinstance(value, dict):
@@ -278,7 +293,7 @@ def build_trace_tree(run_dict: dict, depth: int = 0) -> dict:
                         "_type": "dict",
                         "_field_count": field_count,
                         "_character_count": count_characters(value),
-                        "_keys": list(value.keys())[:10]  # Show first 10 keys as preview
+                        "_keys": list(value.keys())[:10],  # Show first 10 keys as preview
                     }
         elif isinstance(value, list):
             # For lists, show metrics
@@ -293,8 +308,14 @@ def build_trace_tree(run_dict: dict, depth: int = 0) -> dict:
                         if isinstance(item, dict):
                             processed_items.append(build_trace_tree(item, depth - 1))
                         else:  # list
-                            processed_items.append([build_trace_tree(subitem, depth - 1) if isinstance(subitem, dict)
-                                                   else subitem for subitem in item])
+                            processed_items.append(
+                                [
+                                    build_trace_tree(subitem, depth - 1)
+                                    if isinstance(subitem, dict)
+                                    else subitem
+                                    for subitem in item
+                                ]
+                            )
                     else:
                         processed_items.append(item)
                 tree[key] = processed_items
@@ -312,13 +333,13 @@ def build_trace_tree(run_dict: dict, depth: int = 0) -> dict:
                         # For primitive items, show the value (but limit length)
                         str_val = str(item)
                         preview.append(str_val[:100] if len(str_val) > 100 else str_val)
-                
+
                 tree[key] = {
                     "_type": "list",
                     "_length": len(value),
                     "_field_count": count_fields(value),
                     "_character_count": count_characters(value),
-                    "_preview": preview
+                    "_preview": preview,
                 }
         else:
             # For primitive values, show directly

@@ -7,10 +7,10 @@ This server exposes methods to interact with LangSmith's observability platform:
 """
 
 from fastmcp import FastMCP
-from starlette.requests import Request
-from starlette.responses import PlainTextResponse
 from starlette.middleware import Middleware
 from starlette.middleware.cors import CORSMiddleware
+from starlette.requests import Request
+from starlette.responses import PlainTextResponse
 
 from langsmith_mcp_server.middleware import APIKeyMiddleware
 from langsmith_mcp_server.services import (
@@ -28,9 +28,11 @@ register_tools(mcp)
 register_prompts(mcp)
 register_resources(mcp)
 
+
 @mcp.custom_route("/health", methods=["GET"])
 async def health_check(request: Request) -> PlainTextResponse:
     return PlainTextResponse("LangSmith MCP server is running")
+
 
 # Define middleware - API key middleware must be first
 middleware = [
@@ -46,6 +48,7 @@ middleware = [
 
 # Create ASGI application
 app = mcp.http_app(middleware=middleware)
+
 
 def main() -> None:
     """Run the LangSmith MCP server."""

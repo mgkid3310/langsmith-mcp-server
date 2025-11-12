@@ -1,16 +1,19 @@
 """Tools for interacting with LangSmith traces and conversations."""
 
-from typing import Any, Dict
+from typing import Any, Dict, Iterable, List, Optional, Union
+
 from langsmith import Client
-from typing import List, Optional, Iterable, Union, Any
 from langsmith.schemas import Run
+
 from langsmith_mcp_server.common.helpers import (
     convert_uuids_to_strings,
     find_in_dict,
 )
 
 
-def fetch_trace_tool(client: Client, project_name: str = None, trace_id: str = None) -> Dict[str, Any]:
+def fetch_trace_tool(
+    client: Client, project_name: str = None, trace_id: str = None
+) -> Dict[str, Any]:
     """
     Fetch the trace content for a specific project or specify a trace ID.
 
