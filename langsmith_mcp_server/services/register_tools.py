@@ -78,281 +78,284 @@ def register_tools(mcp: FastMCP) -> None:
             return {"error": str(e)}
 
     @mcp.tool()
-    def push_prompt(ctx: Context = None) -> None:
+    def push_prompt(ctx: Context = None) -> str:
         """
-        Documentation tool for understanding how to create and push prompts to LangSmith.
+        Call this tool when you need to understand how to create and push prompts to LangSmith.
+        """
+        documentation = """
+Documentation tool for understanding how to create and push prompts to LangSmith.
 
-        This tool provides comprehensive documentation on creating ChatPromptTemplate and
-        StructuredPrompt objects and pushing them to LangSmith using the LangSmith Client.
+This tool provides comprehensive documentation on creating ChatPromptTemplate and
+StructuredPrompt objects and pushing them to LangSmith using the LangSmith Client.
 
-        ---
-        🧩 PURPOSE
-        ----------
-        This is a **documentation-only tool** that explains how to:
-        - Create prompts using LangChain's prompt templates
-        - Push prompts to LangSmith for version control and management
-        - Handle prompt creation vs. version updates
+---
+🧩 PURPOSE
+----------
+This is a **documentation-only tool** that explains how to:
+- Create prompts using LangChain's prompt templates
+- Push prompts to LangSmith for version control and management
+- Handle prompt creation vs. version updates
 
-        ---
-        📦 REQUIRED DEPENDENCIES
-        ------------------------
-        To use the functionality described in this documentation, you need:
-        - `langsmith` - The LangSmith Python client
-        - `langchain-core` - Core LangChain functionality for prompt templates
-        - `langchain` (optional) - Required only if using `from langchain.messages` imports
+---
+📦 REQUIRED DEPENDENCIES
+------------------------
+To use the functionality described in this documentation, you need:
+- `langsmith` - The LangSmith Python client
+- `langchain-core` - Core LangChain functionality for prompt templates
+- `langchain` (optional) - Required only if using `from langchain.messages` imports
 
-        Install with:
-        ```bash
-        pip install langsmith langchain-core
-        # Optional, for message classes:
-        pip install langchain
-        ```
+Install with:
+```bash
+pip install langsmith langchain-core
+# Optional, for message classes:
+pip install langchain
+```
 
-        ---
-        🔧 HOW TO PUSH PROMPTS
-        -----------------------
-        Use the LangSmith Client's `push_prompt()` method:
+---
+🔧 HOW TO PUSH PROMPTS
+-----------------------
+Use the LangSmith Client's `push_prompt()` method:
 
-        ```python
-        from langsmith import Client
+```python
+from langsmith import Client
 
-        client = Client()
+client = Client()
 
-        url = client.push_prompt(
-            prompt_identifier="my-prompt-name",
-            object=prompt,  # Your prompt object
-            description="Optional description",
-            tags=["tag1", "tag2"],  # Optional tags
-            is_public=False,  # Optional visibility (True/False)
-        )
-        ```
+url = client.push_prompt(
+    prompt_identifier="my-prompt-name",
+    object=prompt,  # Your prompt object
+    description="Optional description",
+    tags=["tag1", "tag2"],  # Optional tags
+    is_public=False,  # Optional visibility (True/False)
+)
+```
 
-        **Behavior:**
-        - If the prompt name **doesn't exist**: Creates a new prompt in LangSmith
-        - If the prompt name **exists** and it's a **new version**: Creates a new commit/version
-        - If the prompt name **exists** and it's the **same version**: No new commit is created
+**Behavior:**
+- If the prompt name **doesn't exist**: Creates a new prompt in LangSmith
+- If the prompt name **exists** and it's a **new version**: Creates a new commit/version
+- If the prompt name **exists** and it's the **same version**: No new commit is created
 
-        ---
-        📝 CREATING CHATPROMPTTEMPLATE PROMPTS
-        --------------------------------------
+---
+📝 CREATING CHATPROMPTTEMPLATE PROMPTS
+--------------------------------------
 
-        1️⃣ **Basic ChatPromptTemplate**
-        ```python
-        from langchain_core.prompts import ChatPromptTemplate
+1️⃣ **Basic ChatPromptTemplate**
+```python
+from langchain_core.prompts import ChatPromptTemplate
 
-        prompt = ChatPromptTemplate.from_messages([
-            ("system", "You are a helpful AI assistant. Your name is {assistant_name}."),
-            ("human", "{user_input}"),
-        ])
+prompt = ChatPromptTemplate.from_messages([
+    ("system", "You are a helpful AI assistant. Your name is {assistant_name}."),
+    ("human", "{user_input}"),
+])
 
-        client.push_prompt("my-chat-prompt", object=prompt)
-        ```
+client.push_prompt("my-chat-prompt", object=prompt)
+```
 
-        2️⃣ **Using Message Classes**
-        ```python
-        from langchain_core.prompts import ChatPromptTemplate
-        from langchain.messages import SystemMessage, HumanMessage, AIMessage
+2️⃣ **Using Message Classes**
+```python
+from langchain_core.prompts import ChatPromptTemplate
+from langchain.messages import SystemMessage, HumanMessage, AIMessage
 
-        prompt = ChatPromptTemplate.from_messages([
-            SystemMessage(content="You are a coding assistant."),
-            HumanMessage(content="Write a Python function to {task}"),
-            AIMessage(content="I'll help you write that function."),
-            ("human", "Make it {style}"),
-        ])
+prompt = ChatPromptTemplate.from_messages([
+    SystemMessage(content="You are a coding assistant."),
+    HumanMessage(content="Write a Python function to {task}"),
+    AIMessage(content="I'll help you write that function."),
+    ("human", "Make it {style}"),
+])
 
-        client.push_prompt("my-message-classes-prompt", object=prompt)
-        ```
+client.push_prompt("my-message-classes-prompt", object=prompt)
+```
 
-        3️⃣ **With MessagesPlaceholder for Conversation History**
-        ```python
-        from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
+3️⃣ **With MessagesPlaceholder for Conversation History**
+```python
+from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 
-        prompt = ChatPromptTemplate.from_messages([
-            ("system", "You are a helpful assistant."),
-            MessagesPlaceholder(variable_name="conversation", optional=True),
-            ("human", "{user_input}"),
-        ])
+prompt = ChatPromptTemplate.from_messages([
+    ("system", "You are a helpful assistant."),
+    MessagesPlaceholder(variable_name="conversation", optional=True),
+    ("human", "{user_input}"),
+])
 
-        client.push_prompt("my-conversation-prompt", object=prompt)
-        ```
+client.push_prompt("my-conversation-prompt", object=prompt)
+```
 
-        4️⃣ **Complex Prompt with Multiple Placeholders**
-        ```python
-        from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
-        from langchain.messages import HumanMessage
+4️⃣ **Complex Prompt with Multiple Placeholders**
+```python
+from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
+from langchain.messages import HumanMessage
 
-        prompt = ChatPromptTemplate.from_messages([
-            ("system", "You are {assistant_name}, a {role} assistant."),
-            MessagesPlaceholder(variable_name="chat_history", optional=True),
-            ("human", "Current question: {question}"),
-            ("ai", "Let me think about that..."),
-            MessagesPlaceholder(variable_name="tool_results", optional=True),
-            HumanMessage(content="Based on the above, what's your final answer?"),
-        ])
+prompt = ChatPromptTemplate.from_messages([
+    ("system", "You are {assistant_name}, a {role} assistant."),
+    MessagesPlaceholder(variable_name="chat_history", optional=True),
+    ("human", "Current question: {question}"),
+    ("ai", "Let me think about that..."),
+    MessagesPlaceholder(variable_name="tool_results", optional=True),
+    HumanMessage(content="Based on the above, what's your final answer?"),
+])
 
-        client.push_prompt("my-complex-prompt", object=prompt)
-        ```
+client.push_prompt("my-complex-prompt", object=prompt)
+```
 
-        ---
-        🎯 CREATING STRUCTUREDPROMPT PROMPTS
-        ------------------------------------
+---
+🎯 CREATING STRUCTUREDPROMPT PROMPTS
+------------------------------------
 
-        StructuredPrompt allows you to define output schemas for structured outputs.
+StructuredPrompt allows you to define output schemas for structured outputs.
 
-        1️⃣ **With Dictionary Schema (with title and description)**
-        ```python
-        from langchain_core.prompts.structured import StructuredPrompt
+1️⃣ **With Dictionary Schema (with title and description)**
+```python
+from langchain_core.prompts.structured import StructuredPrompt
 
-        schema = {
-            "title": "SentimentAnalysis",
-            "description": "Analyzes the sentiment of text with confidence and reasoning",
-            "type": "object",
-            "properties": {
-                "sentiment": {
-                    "type": "string",
-                    "enum": ["positive", "negative", "neutral"],
-                    "description": "The sentiment of the text"
-                },
-                "confidence": {
-                    "type": "number",
-                    "description": "Confidence score between 0 and 1"
-                },
-                "reasoning": {
-                    "type": "string",
-                    "description": "Brief reasoning for the sentiment"
-                }
-            },
-            "required": ["sentiment", "confidence", "reasoning"],
-            "strict": True
+schema = {
+    "title": "SentimentAnalysis",
+    "description": "Analyzes the sentiment of text with confidence and reasoning",
+    "type": "object",
+    "properties": {
+        "sentiment": {
+            "type": "string",
+            "enum": ["positive", "negative", "neutral"],
+            "description": "The sentiment of the text"
+        },
+        "confidence": {
+            "type": "number",
+            "description": "Confidence score between 0 and 1"
+        },
+        "reasoning": {
+            "type": "string",
+            "description": "Brief reasoning for the sentiment"
         }
+    },
+    "required": ["sentiment", "confidence", "reasoning"],
+    "strict": True
+}
 
-        prompt = StructuredPrompt(
-            [
-                ("system", "You are a sentiment analysis expert."),
-                ("human", "Analyze the sentiment of: {text}"),
-            ],
-            schema_=schema,
-        )
+prompt = StructuredPrompt(
+    [
+        ("system", "You are a sentiment analysis expert."),
+        ("human", "Analyze the sentiment of: {text}"),
+    ],
+    schema_=schema,
+)
 
-        client.push_prompt("my-structured-prompt", object=prompt)
-        ```
+client.push_prompt("my-structured-prompt", object=prompt)
+```
 
-        2️⃣ **With Pydantic Model (Convert to Dict Schema)**
-        ```python
-        from langchain_core.prompts.structured import StructuredPrompt
-        from pydantic import BaseModel, Field
+2️⃣ **With Pydantic Model (Convert to Dict Schema)**
+```python
+from langchain_core.prompts.structured import StructuredPrompt
+from pydantic import BaseModel, Field
 
-        class UserInfo(BaseModel):
-            '''User information extracted from text.'''
-            name: str = Field(description="The user's name")
-            age: int = Field(description="The user's age")
-            email: str = Field(description="The user's email address")
+class UserInfo(BaseModel):
+    '''User information extracted from text.'''
+    name: str = Field(description="The user's name")
+    age: int = Field(description="The user's age")
+    email: str = Field(description="The user's email address")
 
-        # Convert Pydantic model to dict schema
-        schema_dict = UserInfo.model_json_schema()
-        # Add title and description at top level if not present
-        if "title" not in schema_dict:
-            schema_dict["title"] = UserInfo.__name__
-        if "description" not in schema_dict:
-            schema_dict["description"] = UserInfo.__doc__ or f"Schema for {UserInfo.__name__}"
+# Convert Pydantic model to dict schema
+schema_dict = UserInfo.model_json_schema()
+# Add title and description at top level if not present
+if "title" not in schema_dict:
+    schema_dict["title"] = UserInfo.__name__
+if "description" not in schema_dict:
+    schema_dict["description"] = UserInfo.__doc__ or f"Schema for {UserInfo.__name__}"
 
-        prompt = StructuredPrompt(
-            [
-                ("system", "You are a helpful assistant that extracts user information."),
-                ("human", "Extract information from: {text}"),
-            ],
-            schema_=schema_dict,
-        )
+prompt = StructuredPrompt(
+    [
+        ("system", "You are a helpful assistant that extracts user information."),
+        ("human", "Extract information from: {text}"),
+    ],
+    schema_=schema_dict,
+)
 
-        client.push_prompt("my-pydantic-prompt", object=prompt)
-        ```
+client.push_prompt("my-pydantic-prompt", object=prompt)
+```
 
-        ---
-        🧠 HELPER FUNCTION PATTERN
-        ---------------------------
-        You can create a reusable helper function:
+---
+🧠 HELPER FUNCTION PATTERN
+---------------------------
+You can create a reusable helper function:
 
-        ```python
-        def push_prompt_to_langsmith(
-            prompt,
-            prompt_identifier: str,
-            description: str = None,
-            tags: list = None,
-            is_public: bool = None,
-        ) -> str:
-            '''
-            Push a prompt to LangSmith with optional metadata.
+```python
+def push_prompt_to_langsmith(
+    prompt,
+    prompt_identifier: str,
+    description: str = None,
+    tags: list = None,
+    is_public: bool = None,
+) -> str:
+    '''
+    Push a prompt to LangSmith with optional metadata.
 
-            Args:
-                prompt: The prompt object (ChatPromptTemplate, StructuredPrompt, etc.)
-                prompt_identifier: The name/identifier for the prompt
-                description: Optional description of the prompt
-                tags: Optional list of tags
-                is_public: Optional visibility setting (True/False)
+    Args:
+        prompt: The prompt object (ChatPromptTemplate, StructuredPrompt, etc.)
+        prompt_identifier: The name/identifier for the prompt
+        description: Optional description of the prompt
+        tags: Optional list of tags
+        is_public: Optional visibility setting (True/False)
 
-            Returns:
-                The URL of the pushed prompt
-            '''
-            kwargs = {"object": prompt}
-            if description:
-                kwargs["description"] = description
-            if tags:
-                kwargs["tags"] = tags
-            if is_public is not None:
-                kwargs["is_public"] = is_public
+    Returns:
+        The URL of the pushed prompt
+    '''
+    kwargs = {"object": prompt}
+    if description:
+        kwargs["description"] = description
+    if tags:
+        kwargs["tags"] = tags
+    if is_public is not None:
+        kwargs["is_public"] = is_public
 
-            url = client.push_prompt(prompt_identifier, **kwargs)
-            return url
-        ```
+    url = client.push_prompt(prompt_identifier, **kwargs)
+    return url
+```
 
-        ---
-        📤 RETURNS
-        ----------
-        None
-            This tool is documentation-only and returns None. The documentation is in the docstring.
+---
+📤 RETURNS
+----------
+None
+    This tool is documentation-only and returns None. The documentation is in the docstring.
 
-        ---
-        🧠 NOTES FOR AGENTS
-        --------------------
-        - This tool is **documentation-only** - it does not execute any code
-        - Use this tool to understand how to create and push prompts programmatically
-        - The `push_prompt()` method automatically handles versioning:
-          - New prompt name → creates new prompt
-          - Existing prompt name with changes → creates new version/commit
-          - Existing prompt name with no changes → no new commit
-        - Always ensure you have the required dependencies installed before using these patterns
-        - Prompt identifiers should be unique and descriptive
-        - Use tags and descriptions to organize and document your prompts
+---
+🧠 NOTES FOR AGENTS
+--------------------
+- This tool is **documentation-only** - it does not execute any code
+- Use this tool to understand how to create and push prompts programmatically
+- The `push_prompt()` method automatically handles versioning:
+  - New prompt name → creates new prompt
+  - Existing prompt name with changes → creates new version/commit
+  - Existing prompt name with no changes → no new commit
+- Always ensure you have the required dependencies installed before using these patterns
+- Prompt identifiers should be unique and descriptive
+- Use tags and descriptions to organize and document your prompts
 
-        ---
-        🔐 ENVIRONMENT VARIABLES
-        -------------------------
-        Before using the LangSmith Client, make sure to set up your environment variables:
+---
+🔐 ENVIRONMENT VARIABLES
+-------------------------
+Before using the LangSmith Client, make sure to set up your environment variables:
 
-        **Required:**
-        ```bash
-        export LANGSMITH_API_KEY="lsv2_pt_..."
-        ```
+**Required:**
+```bash
+export LANGSMITH_API_KEY="lsv2_pt_..."
+```
 
-        **Optional:**
-        ```bash
-        # Only needed if using a custom endpoint (defaults to cloud if not set)
-        export LANGSMITH_ENDPOINT="https://api.smith.langchain.com"
+**Optional:**
+```bash
+# Only needed if using a custom endpoint (defaults to cloud if not set)
+export LANGSMITH_ENDPOINT="https://api.smith.langchain.com"
 
-        # Only needed if you want to specify a workspace
-        export LANGSMITH_WORKSPACE_ID="35e66a3b-2973-4830-83e1-352c43a660ed"
-        ```
+# Only needed if you want to specify a workspace
+export LANGSMITH_WORKSPACE_ID="35e66a3b-2973-4830-83e1-352c43a660ed"
+```
 
-        You can also use a `.env` file with `python-dotenv`:
-        ```python
-        from dotenv import load_dotenv
-        load_dotenv()  # Loads variables from .env file
+You can also use a `.env` file with `python-dotenv`:
+```python
+from dotenv import load_dotenv
+load_dotenv()  # Loads variables from .env file
 
-        from langsmith import Client
-        client = Client()  # Will automatically use environment variables
-        ```
-        """  # noqa: W293
-        return None
+from langsmith import Client
+client = Client()  # Will automatically use environment variables
+```
+"""
+        return documentation
 
     # Register conversation tools
     # @mcp.tool()
@@ -1111,665 +1114,674 @@ def register_tools(mcp: FastMCP) -> None:
             return {"error": str(e)}
 
     @mcp.tool()
-    def create_dataset(ctx: Context = None) -> None:
+    def create_dataset(ctx: Context = None) -> str:
         """
-        Documentation tool for understanding how to create datasets in LangSmith.
+        Call this tool when you need to understand how to create datasets in LangSmith.
+        """
+        documentation = """
+Documentation tool for understanding how to create datasets in LangSmith.
 
-        This tool provides comprehensive documentation on creating datasets programmatically
-        using the LangSmith Python SDK, including creating datasets from lists, traces, CSV files,
-        and pandas DataFrames.
+This tool provides comprehensive documentation on creating datasets programmatically
+using the LangSmith Python SDK, including creating datasets from lists, traces, CSV files,
+and pandas DataFrames.
 
-        ---
-        🧩 PURPOSE
-        ----------
-        This is a **documentation-only tool** that explains how to:
-        - Create datasets from lists of examples
-        - Create datasets from traces/runs
-        - Create datasets from CSV files
-        - Create datasets from pandas DataFrames
-        - Add examples to datasets using bulk operations
+---
+🧩 PURPOSE
+----------
+This is a **documentation-only tool** that explains how to:
+- Create datasets from lists of examples
+- Create datasets from traces/runs
+- Create datasets from CSV files
+- Create datasets from pandas DataFrames
+- Add examples to datasets using bulk operations
 
-        ---
-        📦 REQUIRED DEPENDENCIES
-        ------------------------
-        To use the functionality described in this documentation, you need:
-        - `langsmith` - The LangSmith Python client
-        - `pandas` (optional) - Required only for DataFrame operations
+---
+📦 REQUIRED DEPENDENCIES
+------------------------
+To use the functionality described in this documentation, you need:
+- `langsmith` - The LangSmith Python client
+- `pandas` (optional) - Required only for DataFrame operations
 
-        Install with:
-        ```bash
-        pip install langsmith
-        # Optional, for DataFrame operations:
-        pip install pandas
-        ```
+Install with:
+```bash
+pip install langsmith
+# Optional, for DataFrame operations:
+pip install pandas
+```
 
-        ---
-        🔧 CREATING DATASETS
-        --------------------
+---
+🔧 CREATING DATASETS
+--------------------
 
-        1️⃣ **Create Dataset from List of Values**
+1️⃣ **Create Dataset from List of Values**
 
-        The most flexible way to create a dataset is by creating examples from a list of inputs
-        and optional outputs. You can add arbitrary metadata to each example.
+The most flexible way to create a dataset is by creating examples from a list of inputs
+and optional outputs. You can add arbitrary metadata to each example.
 
-        ```python
-        from langsmith import Client
+```python
+from langsmith import Client
 
-        client = Client()
+client = Client()
 
-        examples = [
-            {
-                "inputs": {"question": "What is the largest mammal?"},
-                "outputs": {"answer": "The blue whale"},
-                "metadata": {"source": "Wikipedia"},
-            },
-            {
-                "inputs": {"question": "What do mammals and birds have in common?"},
-                "outputs": {"answer": "They are both warm-blooded"},
-                "metadata": {"source": "Wikipedia"},
-            },
-            {
-                "inputs": {"question": "What are reptiles known for?"},
-                "outputs": {"answer": "Having scales"},
-                "metadata": {"source": "Wikipedia"},
-            },
-        ]
+examples = [
+    {
+        "inputs": {"question": "What is the largest mammal?"},
+        "outputs": {"answer": "The blue whale"},
+        "metadata": {"source": "Wikipedia"},
+    },
+    {
+        "inputs": {"question": "What do mammals and birds have in common?"},
+        "outputs": {"answer": "They are both warm-blooded"},
+        "metadata": {"source": "Wikipedia"},
+    },
+    {
+        "inputs": {"question": "What are reptiles known for?"},
+        "outputs": {"answer": "Having scales"},
+        "metadata": {"source": "Wikipedia"},
+    },
+]
 
-        dataset_name = "Elementary Animal Questions"
+dataset_name = "Elementary Animal Questions"
 
-        # Create the dataset
-        dataset = client.create_dataset(
-            dataset_name=dataset_name,
-            description="Questions and answers about animal phylogenetics.",
-        )
+# Create the dataset
+dataset = client.create_dataset(
+    dataset_name=dataset_name,
+    description="Questions and answers about animal phylogenetics.",
+)
 
-        # Bulk create examples (more efficient than creating one at a time)
-        client.create_examples(
-            dataset_id=dataset.id,
-            examples=examples
-        )
-        ```
+# Bulk create examples (more efficient than creating one at a time)
+client.create_examples(
+    dataset_id=dataset.id,
+    examples=examples
+)
+```
 
-        **Note:** For many examples, use `create_examples()` for bulk creation. For a single
-        example, use `create_example()`.
+**Note:** For many examples, use `create_examples()` for bulk creation. For a single
+example, use `create_example()`.
 
-        2️⃣ **Create Dataset from Traces**
+2️⃣ **Create Dataset from Traces**
 
-        You can create datasets from the runs (spans) of your traces by filtering runs and
-        converting them to examples.
+You can create datasets from the runs (spans) of your traces by filtering runs and
+converting them to examples.
 
-        ```python
-        from langsmith import Client
+```python
+from langsmith import Client
 
-        client = Client()
-        dataset_name = "Example Dataset"
+client = Client()
+dataset_name = "Example Dataset"
 
-        # Filter runs to add to the dataset
-        runs = client.list_runs(
-            project_name="my_project",
-            is_root=True,
-            error=False,
-        )
+# Filter runs to add to the dataset
+runs = client.list_runs(
+    project_name="my_project",
+    is_root=True,
+    error=False,
+)
 
-        # Create the dataset
-        dataset = client.create_dataset(
-            dataset_name=dataset_name,
-            description="An example dataset"
-        )
+# Create the dataset
+dataset = client.create_dataset(
+    dataset_name=dataset_name,
+    description="An example dataset"
+)
 
-        # Prepare inputs and outputs for bulk creation
-        examples = [
-            {"inputs": run.inputs, "outputs": run.outputs}
-            for run in runs
-        ]
+# Prepare inputs and outputs for bulk creation
+examples = [
+    {"inputs": run.inputs, "outputs": run.outputs}
+    for run in runs
+]
 
-        # Use the bulk create_examples method
-        client.create_examples(
-            dataset_id=dataset.id,
-            examples=examples
-        )
-        ```
+# Use the bulk create_examples method
+client.create_examples(
+    dataset_id=dataset.id,
+    examples=examples
+)
+```
 
-        3️⃣ **Create Dataset from CSV File**
+3️⃣ **Create Dataset from CSV File**
 
-        You can create a dataset by uploading a CSV file. Ensure your CSV has columns that
-        represent your input and output keys.
+You can create a dataset by uploading a CSV file. Ensure your CSV has columns that
+represent your input and output keys.
 
-        ```python
-        from langsmith import Client
+```python
+from langsmith import Client
 
-        client = Client()
+client = Client()
 
-        csv_file = 'path/to/your/csvfile.csv'
-        input_keys = ['column1', 'column2']  # Replace with your input column names
-        output_keys = ['output1', 'output2']  # Replace with your output column names
+csv_file = 'path/to/your/csvfile.csv'
+input_keys = ['column1', 'column2']  # Replace with your input column names
+output_keys = ['output1', 'output2']  # Replace with your output column names
 
-        dataset = client.upload_csv(
-            csv_file=csv_file,
-            input_keys=input_keys,
-            output_keys=output_keys,
-            name="My CSV Dataset",
-            description="Dataset created from a CSV file",
-            data_type="kv"  # "kv" or "chat"
-        )
-        ```
+dataset = client.upload_csv(
+    csv_file=csv_file,
+    input_keys=input_keys,
+    output_keys=output_keys,
+    name="My CSV Dataset",
+    description="Dataset created from a CSV file",
+    data_type="kv"  # "kv" or "chat"
+)
+```
 
-        4️⃣ **Create Dataset from Pandas DataFrame (Python only)**
+4️⃣ **Create Dataset from Pandas DataFrame (Python only)**
 
-        The Python client offers a convenience method to upload a dataset from a pandas DataFrame.
+The Python client offers a convenience method to upload a dataset from a pandas DataFrame.
 
-        ```python
-        from langsmith import Client
-        import pandas as pd
+```python
+from langsmith import Client
+import pandas as pd
 
-        client = Client()
+client = Client()
 
-        # Load your data
-        df = pd.read_parquet('path/to/your/myfile.parquet')
-        # Or: df = pd.read_csv('path/to/your/myfile.csv')
+# Load your data
+df = pd.read_parquet('path/to/your/myfile.parquet')
+# Or: df = pd.read_csv('path/to/your/myfile.csv')
 
-        input_keys = ['column1', 'column2']  # Replace with your input column names
-        output_keys = ['output1', 'output2']  # Replace with your output column names
+input_keys = ['column1', 'column2']  # Replace with your input column names
+output_keys = ['output1', 'output2']  # Replace with your output column names
 
-        dataset = client.upload_dataframe(
-            df=df,
-            input_keys=input_keys,
-            output_keys=output_keys,
-            name="My Parquet Dataset",
-            description="Dataset created from a parquet file",
-            data_type="kv"  # The default, can also be "chat"
-        )
-        ```
+dataset = client.upload_dataframe(
+    df=df,
+    input_keys=input_keys,
+    output_keys=output_keys,
+    name="My Parquet Dataset",
+    description="Dataset created from a parquet file",
+    data_type="kv"  # The default, can also be "chat"
+)
+```
 
-        ---
-        📝 DATASET STRUCTURE
-        --------------------
-        Each example in a dataset should have:
-        - `inputs` (dict): The input data for the example
-        - `outputs` (dict, optional): The expected output data
-        - `metadata` (dict, optional): Arbitrary metadata (e.g., source, notes, tags)
+---
+📝 DATASET STRUCTURE
+--------------------
+Each example in a dataset should have:
+- `inputs` (dict): The input data for the example
+- `outputs` (dict, optional): The expected output data
+- `metadata` (dict, optional): Arbitrary metadata (e.g., source, notes, tags)
 
-        ---
-        📤 RETURNS
-        ----------
-        None
-            This tool is documentation-only and returns None. The documentation is in the docstring.
+---
+📤 RETURNS
+----------
+None
+    This tool is documentation-only and returns None. The documentation is in the docstring.
 
-        ---
-        🧠 NOTES FOR AGENTS
-        --------------------
-        - This tool is **documentation-only** - it does not execute any code
-        - Use `create_examples()` for bulk operations (more efficient)
-        - Use `create_example()` for single example creation
-        - Datasets can be of type "kv" (key-value) or "chat" (conversational)
-        - Metadata is stored as a dictionary and can contain any key-value pairs
-        - Always ensure you have the required dependencies installed before using these patterns
-        - The dataset name should be unique and descriptive
-        """  # noqa: W293
-        return None
+---
+🧠 NOTES FOR AGENTS
+--------------------
+- This tool is **documentation-only** - it does not execute any code
+- Use `create_examples()` for bulk operations (more efficient)
+- Use `create_example()` for single example creation
+- Datasets can be of type "kv" (key-value) or "chat" (conversational)
+- Metadata is stored as a dictionary and can contain any key-value pairs
+- Always ensure you have the required dependencies installed before using these patterns
+- The dataset name should be unique and descriptive
+"""
+        return documentation
 
     @mcp.tool()
-    def update_examples(ctx: Context = None) -> None:
+    def update_examples(ctx: Context = None) -> str:
         """
-        Documentation tool for understanding how to update dataset examples in LangSmith.
-
-        This tool provides comprehensive documentation on updating examples programmatically
-        using the LangSmith Python SDK, including single example updates and bulk updates.
-
-        ---
-        🧩 PURPOSE
-        ----------
-        This is a **documentation-only tool** that explains how to:
-        - Update a single example in a dataset
-        - Bulk update multiple examples in a single request
-        - Update inputs, outputs, metadata, and splits
-
-        ---
-        📦 REQUIRED DEPENDENCIES
-        ------------------------
-        To use the functionality described in this documentation, you need:
-        - `langsmith` - The LangSmith Python client
-
-        Install with:
-        ```bash
-        pip install langsmith
-        ```
-
-        ---
-        🔧 UPDATING EXAMPLES
-        --------------------
-
-        1️⃣ **Update Single Example**
-
-        You can update a single example using the `update_example()` method. You can update
-        inputs, outputs, metadata, and split assignments.
-
-        ```python
-        from langsmith import Client
-
-        client = Client()
-
-        # Update a single example
-        client.update_example(
-            example_id=example.id,  # The example ID to update
-            inputs={"input": "updated input"},
-            outputs={"output": "updated output"},
-            metadata={"foo": "bar", "source": "updated"},
-            split="train"  # Can be a string or list of strings
-        )
-        ```
-
-        **Parameters:**
-        - `example_id` (str, required): The ID of the example to update
-        - `inputs` (dict, optional): Updated input data
-        - `outputs` (dict, optional): Updated output data
-        - `metadata` (dict, optional): Updated metadata dictionary
-        - `split` (str or list, optional): Updated split assignment(s)
-
-        2️⃣ **Bulk Update Examples**
-
-        You can update multiple examples in a single request using the `update_examples()` method.
-        This is more efficient than updating examples one at a time.
-
-        ```python
-        from langsmith import Client
-
-        client = Client()
-
-        # Update multiple examples at once
-        client.update_examples(
-            example_ids=[example.id, example_2.id],
-            inputs=[
-                {"input": "updated input 1"},
-                {"input": "updated input 2"}
-            ],
-            outputs=[
-                {"output": "updated output 1"},
-                {"output": "updated output 2"}
-            ],
-            metadata=[
-                {"foo": "baz", "source": "source1"},
-                {"foo": "qux", "source": "source2"}
-            ],
-            splits=[
-                ["training", "foo"],  # Splits can be arrays
-                "training"            # Or standalone strings
-            ]
-        )
-        ```
-
-        **Parameters:**
-        - `example_ids` (list[str], required): List of example IDs to update
-        - `inputs` (list[dict], optional): List of updated input dictionaries
-        - `outputs` (list[dict], optional): List of updated output dictionaries
-        - `metadata` (list[dict], optional): List of updated metadata dictionaries
-        - `splits` (list[str or list], optional): List of split assignments (can be strings or lists)
-
-        **Important Notes:**
-        - All list parameters must have the same length as `example_ids`
-        - Each list index corresponds to the example at the same index in `example_ids`
-        - Splits can be either a single string or a list of strings (for multiple splits)
-        - You can update any combination of fields - you don't need to provide all parameters
-
-        3️⃣ **Partial Updates**
-
-        You can update only specific fields without providing all parameters:
-
-        ```python
-        # Update only metadata for a single example
-        client.update_example(
-            example_id=example.id,
-            metadata={"updated_at": "2024-01-01", "status": "reviewed"}
-        )
-
-        # Update only outputs for multiple examples
-        client.update_examples(
-            example_ids=[example.id, example_2.id],
-            outputs=[
-                {"output": "new output 1"},
-                {"output": "new output 2"}
-            ]
-        )
-        ```
-
-        ---
-        📝 SPLIT ASSIGNMENTS
-        ---------------------
-        Examples can be assigned to one or more splits (e.g., "train", "test", "validation"):
-
-        ```python
-        # Single split
-        client.update_example(example_id=example.id, split="train")
-
-        # Multiple splits
-        client.update_example(example_id=example.id, split=["train", "validation"])
-
-        # In bulk updates, each example can have different split assignments
-        client.update_examples(
-            example_ids=[example.id, example_2.id],
-            splits=["train", ["train", "test"]]
-        )
-        ```
-
-        ---
-        📤 RETURNS
-        ----------
-        None
-            This tool is documentation-only and returns None. The documentation is in the docstring.
-
-        ---
-        🧠 NOTES FOR AGENTS
-        --------------------
-        - This tool is **documentation-only** - it does not execute any code
-        - Use `update_examples()` for bulk operations (more efficient than single updates)
-        - Use `update_example()` for single example updates
-        - All list parameters in bulk updates must match the length of `example_ids`
-        - You can update any combination of fields - partial updates are supported
-        - Splits can be strings or lists of strings (for multiple split assignments)
-        - Always ensure you have the required dependencies installed before using these patterns
-        - Example IDs can be obtained from `list_examples()` or `read_example()` methods
+        Call this tool when you need to understand how to update dataset examples in LangSmith.
         """
-        return None
+        documentation = """
+Documentation tool for understanding how to update dataset examples in LangSmith.
+
+This tool provides comprehensive documentation on updating examples programmatically
+using the LangSmith Python SDK, including single example updates and bulk updates.
+
+---
+🧩 PURPOSE
+----------
+This is a **documentation-only tool** that explains how to:
+- Update a single example in a dataset
+- Bulk update multiple examples in a single request
+- Update inputs, outputs, metadata, and splits
+
+---
+📦 REQUIRED DEPENDENCIES
+------------------------
+To use the functionality described in this documentation, you need:
+- `langsmith` - The LangSmith Python client
+
+Install with:
+```bash
+pip install langsmith
+```
+
+---
+🔧 UPDATING EXAMPLES
+--------------------
+
+1️⃣ **Update Single Example**
+
+You can update a single example using the `update_example()` method. You can update
+inputs, outputs, metadata, and split assignments.
+
+```python
+from langsmith import Client
+
+client = Client()
+
+# Update a single example
+client.update_example(
+    example_id=example.id,  # The example ID to update
+    inputs={"input": "updated input"},
+    outputs={"output": "updated output"},
+    metadata={"foo": "bar", "source": "updated"},
+    split="train"  # Can be a string or list of strings
+)
+```
+
+**Parameters:**
+- `example_id` (str, required): The ID of the example to update
+- `inputs` (dict, optional): Updated input data
+- `outputs` (dict, optional): Updated output data
+- `metadata` (dict, optional): Updated metadata dictionary
+- `split` (str or list, optional): Updated split assignment(s)
+
+2️⃣ **Bulk Update Examples**
+
+You can update multiple examples in a single request using the `update_examples()` method.
+This is more efficient than updating examples one at a time.
+
+```python
+from langsmith import Client
+
+client = Client()
+
+# Update multiple examples at once
+client.update_examples(
+    example_ids=[example.id, example_2.id],
+    inputs=[
+        {"input": "updated input 1"},
+        {"input": "updated input 2"}
+    ],
+    outputs=[
+        {"output": "updated output 1"},
+        {"output": "updated output 2"}
+    ],
+    metadata=[
+        {"foo": "baz", "source": "source1"},
+        {"foo": "qux", "source": "source2"}
+    ],
+    splits=[
+        ["training", "foo"],  # Splits can be arrays
+        "training"            # Or standalone strings
+    ]
+)
+```
+
+**Parameters:**
+- `example_ids` (list[str], required): List of example IDs to update
+- `inputs` (list[dict], optional): List of updated input dictionaries
+- `outputs` (list[dict], optional): List of updated output dictionaries
+- `metadata` (list[dict], optional): List of updated metadata dictionaries
+- `splits` (list[str or list], optional): List of split assignments (can be strings or lists)
+
+**Important Notes:**
+- All list parameters must have the same length as `example_ids`
+- Each list index corresponds to the example at the same index in `example_ids`
+- Splits can be either a single string or a list of strings (for multiple splits)
+- You can update any combination of fields - you don't need to provide all parameters
+
+3️⃣ **Partial Updates**
+
+You can update only specific fields without providing all parameters:
+
+```python
+# Update only metadata for a single example
+client.update_example(
+    example_id=example.id,
+    metadata={"updated_at": "2024-01-01", "status": "reviewed"}
+)
+
+# Update only outputs for multiple examples
+client.update_examples(
+    example_ids=[example.id, example_2.id],
+    outputs=[
+        {"output": "new output 1"},
+        {"output": "new output 2"}
+    ]
+)
+```
+
+---
+📝 SPLIT ASSIGNMENTS
+---------------------
+Examples can be assigned to one or more splits (e.g., "train", "test", "validation"):
+
+```python
+# Single split
+client.update_example(example_id=example.id, split="train")
+
+# Multiple splits
+client.update_example(example_id=example.id, split=["train", "validation"])
+
+# In bulk updates, each example can have different split assignments
+client.update_examples(
+    example_ids=[example.id, example_2.id],
+    splits=["train", ["train", "test"]]
+)
+```
+
+---
+📤 RETURNS
+----------
+None
+    This tool is documentation-only and returns None. The documentation is in the docstring.
+
+---
+🧠 NOTES FOR AGENTS
+--------------------
+- This tool is **documentation-only** - it does not execute any code
+- Use `update_examples()` for bulk operations (more efficient than single updates)
+- Use `update_example()` for single example updates
+- All list parameters in bulk updates must match the length of `example_ids`
+- You can update any combination of fields - partial updates are supported
+- Splits can be strings or lists of strings (for multiple split assignments)
+- Always ensure you have the required dependencies installed before using these patterns
+- Example IDs can be obtained from `list_examples()` or `read_example()` methods
+"""
+        return documentation
 
     @mcp.tool()
-    def run_experiment(ctx: Context = None) -> None:
+    def run_experiment(ctx: Context = None) -> str:
         """
-        Documentation tool for understanding how to run experiments and evaluations in LangSmith.
+        Call this tool when you need to understand how to run experiments and evaluations in LangSmith.
+        """
+        documentation = """
+Documentation tool for understanding how to run experiments and evaluations in LangSmith.
 
-        This tool provides comprehensive documentation on running evaluations using LangSmith's
-        evaluate SDK, creating custom evaluators, and using the openevals library for pre-built
-        evaluators like LLM-as-judge and trajectory evaluators.
+This tool provides comprehensive documentation on running evaluations using LangSmith's
+evaluate SDK, creating custom evaluators, and using the openevals library for pre-built
+evaluators like LLM-as-judge and trajectory evaluators.
 
-        ---
-        🧩 PURPOSE
-        ----------
-        This is a **documentation-only tool** that explains how to:
-        - Run experiments using LangSmith's `evaluate()` method
-        - Create custom evaluator functions in Python
-        - Use openevals library for pre-built evaluators
-        - Set up LLM-as-judge evaluators
-        - Use trajectory evaluators for multi-turn conversations
+---
+🧩 PURPOSE
+----------
+This is a **documentation-only tool** that explains how to:
+- Run experiments using LangSmith's `evaluate()` method
+- Create custom evaluator functions in Python
+- Use openevals library for pre-built evaluators
+- Set up LLM-as-judge evaluators
+- Use trajectory evaluators for multi-turn conversations
 
-        ---
-        📦 REQUIRED DEPENDENCIES
-        ------------------------
-        To use the functionality described in this documentation, you need:
-        - `langsmith` - The LangSmith Python client (>=0.3.13 for evaluate)
-        - `openevals` (optional) - For pre-built evaluators like LLM-as-judge
+---
+📦 REQUIRED DEPENDENCIES
+------------------------
+To use the functionality described in this documentation, you need:
+- `langsmith` - The LangSmith Python client (>=0.3.13 for evaluate)
+- `openevals` (optional) - For pre-built evaluators like LLM-as-judge
 
-        Install with:
-        ```bash
-        pip install langsmith
-        # Optional, for pre-built evaluators:
-        pip install openevals
-        ```
+Install with:
+```bash
+pip install langsmith
+# Optional, for pre-built evaluators:
+pip install openevals
+```
 
-        ---
-        🔧 RUNNING EXPERIMENTS WITH LANGSMITH
-        -------------------------------------
+---
+🔧 RUNNING EXPERIMENTS WITH LANGSMITH
+-------------------------------------
 
-        1️⃣ **Basic Evaluation Setup**
+1️⃣ **Basic Evaluation Setup**
 
-        The `evaluate()` method runs your application on a dataset and scores outputs using evaluators.
+The `evaluate()` method runs your application on a dataset and scores outputs using evaluators.
 
-        ```python
-        from langsmith import Client, traceable, wrappers
-        from openai import OpenAI
+```python
+from langsmith import Client, traceable, wrappers
+from openai import OpenAI
 
-        # Step 1: Define your application
-        oai_client = wrappers.wrap_openai(OpenAI())
+# Step 1: Define your application
+oai_client = wrappers.wrap_openai(OpenAI())
 
-        @traceable
-        def toxicity_classifier(inputs: dict) -> dict:
-            instructions = (
-                "Please review the user query below and determine if it contains any form of "
-                "toxic behavior, such as insults, threats, or highly negative comments. "
-                "Respond with 'Toxic' if it does and 'Not toxic' if it doesn't."
-            )
-            messages = [
-                {"role": "system", "content": instructions},
-                {"role": "user", "content": inputs["text"]},
-            ]
-            result = oai_client.chat.completions.create(
-                messages=messages, model="gpt-4o-mini", temperature=0
-            )
-            return {"class": result.choices[0].message.content}
+@traceable
+def toxicity_classifier(inputs: dict) -> dict:
+    instructions = (
+        "Please review the user query below and determine if it contains any form of "
+        "toxic behavior, such as insults, threats, or highly negative comments. "
+        "Respond with 'Toxic' if it does and 'Not toxic' if it doesn't."
+    )
+    messages = [
+        {"role": "system", "content": instructions},
+        {"role": "user", "content": inputs["text"]},
+    ]
+    result = oai_client.chat.completions.create(
+        messages=messages, model="gpt-4o-mini", temperature=0
+    )
+    return {"class": result.choices[0].message.content}
 
-        # Step 2: Create or select a dataset
-        ls_client = Client()
-        dataset = ls_client.create_dataset(dataset_name="Toxic Queries")
+# Step 2: Create or select a dataset
+ls_client = Client()
+dataset = ls_client.create_dataset(dataset_name="Toxic Queries")
 
-        examples = [
-            {"inputs": {"text": "Shut up, idiot"}, "outputs": {"label": "Toxic"}},
-            {"inputs": {"text": "You're a wonderful person"}, "outputs": {"label": "Not toxic"}},
-        ]
-        ls_client.create_examples(dataset_id=dataset.id, examples=examples)
+examples = [
+    {"inputs": {"text": "Shut up, idiot"}, "outputs": {"label": "Toxic"}},
+    {"inputs": {"text": "You're a wonderful person"}, "outputs": {"label": "Not toxic"}},
+]
+ls_client.create_examples(dataset_id=dataset.id, examples=examples)
 
-        # Step 3: Define an evaluator
-        def correct(inputs: dict, outputs: dict, reference_outputs: dict) -> bool:
-            return outputs["class"] == reference_outputs["label"]
+# Step 3: Define an evaluator
+def correct(inputs: dict, outputs: dict, reference_outputs: dict) -> bool:
+    return outputs["class"] == reference_outputs["label"]
 
-        # Step 4: Run the evaluation
-        results = ls_client.evaluate(
-            toxicity_classifier,
-            data=dataset.name,
-            evaluators=[correct],
-            experiment_prefix="gpt-4o-mini, baseline",
-            description="Testing the baseline system.",
-            max_concurrency=4,  # Optional: parallelize evaluation
+# Step 4: Run the evaluation
+results = ls_client.evaluate(
+    toxicity_classifier,
+    data=dataset.name,
+    evaluators=[correct],
+    experiment_prefix="gpt-4o-mini, baseline",
+    description="Testing the baseline system.",
+    max_concurrency=4,  # Optional: parallelize evaluation
+)
+```
+
+**Key Parameters:**
+- `target`: Your application function (takes inputs dict, returns outputs dict)
+- `data`: Dataset name or UUID, or an iterator of examples
+- `evaluators`: List of evaluator functions
+- `experiment_prefix`: Optional name prefix for the experiment
+- `description`: Optional experiment description
+- `max_concurrency`: Optional number of parallel workers
+
+2️⃣ **Creating Custom Evaluators**
+
+Evaluators are functions that score your application's outputs. They receive:
+- `inputs`: The example inputs
+- `outputs`: Your application's actual outputs
+- `reference_outputs`: Expected outputs (if available)
+
+```python
+# Simple boolean evaluator
+def correct(inputs: dict, outputs: dict, reference_outputs: dict) -> bool:
+    return outputs["class"] == reference_outputs["label"]
+
+# Evaluator with score and comment
+def correctness_with_feedback(
+    inputs: dict, outputs: dict, reference_outputs: dict
+) -> dict:
+    is_correct = outputs["class"] == reference_outputs["label"]
+    comment = "Match" if is_correct else "Mismatch"
+    return {
+        "key": "correctness",
+        "score": is_correct,
+        "comment": comment
+    }
+
+# Evaluator that returns a float score
+def similarity_score(
+    inputs: dict, outputs: dict, reference_outputs: dict
+) -> float:
+    # Calculate some similarity metric (0.0 to 1.0)
+    return 0.85
+```
+
+**Evaluator Return Types:**
+- `bool`: Binary score (True/False)
+- `float`: Numeric score (0.0 to 1.0)
+- `dict`: Full result with `key`, `score`, and optional `comment`
+
+---
+🎯 USING OPENEVALS FOR PRE-BUILT EVALUATORS
+-------------------------------------------
+
+The `openevals` library provides pre-built evaluators that you can use out of the box.
+
+1️⃣ **LLM-as-Judge Evaluators**
+
+Use an LLM to judge your application's outputs. This is useful when you need subjective
+evaluation or don't have reference outputs.
+
+```python
+from openevals.llm import create_llm_as_judge
+from openevals.prompts import CORRECTNESS_PROMPT, CONCISENESS_PROMPT
+
+# Correctness evaluator (requires reference outputs)
+correctness_evaluator = create_llm_as_judge(
+    prompt=CORRECTNESS_PROMPT,
+    feedback_key="correctness",
+    model="openai:o3-mini",
+)
+
+# Conciseness evaluator (no reference needed)
+conciseness_evaluator = create_llm_as_judge(
+    prompt=CONCISENESS_PROMPT,
+    feedback_key="conciseness",
+    model="openai:o3-mini",
+)
+
+# Use with LangSmith evaluate
+def wrapped_correctness_evaluator(inputs, outputs, reference_outputs):
+    return correctness_evaluator(
+        inputs=inputs,
+        outputs=outputs,
+        reference_outputs=reference_outputs
+    )
+
+results = ls_client.evaluate(
+    toxicity_classifier,
+    data=dataset.name,
+    evaluators=[wrapped_correctness_evaluator],
+)
+```
+
+**Pre-built Prompts Available:**
+- `CORRECTNESS_PROMPT`: Evaluates correctness against reference outputs
+- `CONCISENESS_PROMPT`: Evaluates how concise the output is
+- `HALLUCINATION_PROMPT`: Checks for hallucinations (requires context)
+- `RAG_HELPFULNESS_PROMPT`: For RAG applications
+- `RAG_GROUNDEDNESS_PROMPT`: Checks if output is grounded in context
+- `RAG_RETRIEVAL_RELEVANCE_PROMPT`: Evaluates retrieval quality
+
+2️⃣ **Custom LLM-as-Judge with Custom Prompts**
+
+You can create custom LLM-as-judge evaluators with your own prompts:
+
+```python
+from openevals.llm import create_llm_as_judge
+
+CUSTOM_PROMPT = '''
+You are an expert evaluator. Rate the output quality on a scale of 0-1.
+
+<input>
+{inputs}
+</input>
+
+<output>
+{outputs}
+</output>
+
+<reference>
+{reference_outputs}
+</reference>
+'''
+
+custom_evaluator = create_llm_as_judge(
+    prompt=CUSTOM_PROMPT,
+    feedback_key="quality",
+    model="openai:o3-mini",
+    continuous=True,  # Returns float (0.0-1.0) instead of boolean
+)
+```
+
+3️⃣ **Trajectory Evaluators for Multi-turn Conversations**
+
+Trajectory evaluators evaluate entire conversation threads, useful for chat applications
+and agents:
+
+```python
+from openevals.llm import create_llm_as_judge
+
+# Create a trajectory evaluator that looks at the full conversation
+trajectory_evaluator = create_llm_as_judge(
+    model="openai:o3-mini",
+    prompt="Based on the below conversation, was the user satisfied?\\n{outputs}",
+    feedback_key="satisfaction",
+)
+
+# When using with evaluate, the outputs will be the full conversation trajectory
+def wrapped_trajectory_evaluator(inputs, outputs, reference_outputs):
+    # outputs here will be a list of messages representing the conversation
+    return trajectory_evaluator(outputs=outputs)
+```
+
+4️⃣ **Other Pre-built Evaluators**
+
+OpenEvals also provides evaluators for:
+- **Exact Match**: Compare outputs exactly
+- **Embedding Similarity**: Compare using embeddings
+- **Levenshtein Distance**: String similarity
+- **Code Evaluators**: Type checking, execution (requires additional setup)
+
+```python
+from openevals.exact import exact_match
+
+# Simple exact match evaluator
+def exact_match_evaluator(inputs, outputs, reference_outputs):
+    return exact_match(outputs=outputs, reference_outputs=reference_outputs)
+```
+
+---
+📝 EVALUATOR WRAPPER PATTERN
+-----------------------------
+When using openevals evaluators with LangSmith's `evaluate()`, you may need to wrap them
+to match the expected signature:
+
+```python
+def wrap_openevals_evaluator(openevals_evaluator):
+    def wrapped(inputs, outputs, reference_outputs):
+        # openevals evaluators may have different parameter names
+        result = openevals_evaluator(
+            inputs=inputs,
+            outputs=outputs,
+            reference_outputs=reference_outputs
         )
-        ```
+        return result
+    return wrapped
 
-        **Key Parameters:**
-        - `target`: Your application function (takes inputs dict, returns outputs dict)
-        - `data`: Dataset name or UUID, or an iterator of examples
-        - `evaluators`: List of evaluator functions
-        - `experiment_prefix`: Optional name prefix for the experiment
-        - `description`: Optional experiment description
-        - `max_concurrency`: Optional number of parallel workers
+# Usage
+wrapped_evaluator = wrap_openevals_evaluator(correctness_evaluator)
+results = ls_client.evaluate(
+    app_function,
+    data=dataset.name,
+    evaluators=[wrapped_evaluator],
+)
+```
 
-        2️⃣ **Creating Custom Evaluators**
+---
+📤 RETURNS
+----------
+None
+    This tool is documentation-only and returns None. The documentation is in the docstring.
 
-        Evaluators are functions that score your application's outputs. They receive:
-        - `inputs`: The example inputs
-        - `outputs`: Your application's actual outputs
-        - `reference_outputs`: Expected outputs (if available)
-
-        ```python
-        # Simple boolean evaluator
-        def correct(inputs: dict, outputs: dict, reference_outputs: dict) -> bool:
-            return outputs["class"] == reference_outputs["label"]
-
-        # Evaluator with score and comment
-        def correctness_with_feedback(
-            inputs: dict, outputs: dict, reference_outputs: dict
-        ) -> dict:
-            is_correct = outputs["class"] == reference_outputs["label"]
-            comment = "Match" if is_correct else "Mismatch"
-            return {
-                "key": "correctness",
-                "score": is_correct,
-                "comment": comment
-            }
-
-        # Evaluator that returns a float score
-        def similarity_score(
-            inputs: dict, outputs: dict, reference_outputs: dict
-        ) -> float:
-            # Calculate some similarity metric (0.0 to 1.0)
-            return 0.85
-        ```
-
-        **Evaluator Return Types:**
-        - `bool`: Binary score (True/False)
-        - `float`: Numeric score (0.0 to 1.0)
-        - `dict`: Full result with `key`, `score`, and optional `comment`
-
-        ---
-        🎯 USING OPENEVALS FOR PRE-BUILT EVALUATORS
-        -------------------------------------------
-
-        The `openevals` library provides pre-built evaluators that you can use out of the box.
-
-        1️⃣ **LLM-as-Judge Evaluators**
-
-        Use an LLM to judge your application's outputs. This is useful when you need subjective
-        evaluation or don't have reference outputs.
-
-        ```python
-        from openevals.llm import create_llm_as_judge
-        from openevals.prompts import CORRECTNESS_PROMPT, CONCISENESS_PROMPT
-
-        # Correctness evaluator (requires reference outputs)
-        correctness_evaluator = create_llm_as_judge(
-            prompt=CORRECTNESS_PROMPT,
-            feedback_key="correctness",
-            model="openai:o3-mini",
-        )
-
-        # Conciseness evaluator (no reference needed)
-        conciseness_evaluator = create_llm_as_judge(
-            prompt=CONCISENESS_PROMPT,
-            feedback_key="conciseness",
-            model="openai:o3-mini",
-        )
-
-        # Use with LangSmith evaluate
-        def wrapped_correctness_evaluator(inputs, outputs, reference_outputs):
-            return correctness_evaluator(
-                inputs=inputs,
-                outputs=outputs,
-                reference_outputs=reference_outputs
-            )
-
-        results = ls_client.evaluate(
-            toxicity_classifier,
-            data=dataset.name,
-            evaluators=[wrapped_correctness_evaluator],
-        )
-        ```
-
-        **Pre-built Prompts Available:**
-        - `CORRECTNESS_PROMPT`: Evaluates correctness against reference outputs
-        - `CONCISENESS_PROMPT`: Evaluates how concise the output is
-        - `HALLUCINATION_PROMPT`: Checks for hallucinations (requires context)
-        - `RAG_HELPFULNESS_PROMPT`: For RAG applications
-        - `RAG_GROUNDEDNESS_PROMPT`: Checks if output is grounded in context
-        - `RAG_RETRIEVAL_RELEVANCE_PROMPT`: Evaluates retrieval quality
-
-        2️⃣ **Custom LLM-as-Judge with Custom Prompts**
-
-        You can create custom LLM-as-judge evaluators with your own prompts:
-
-        ```python
-        from openevals.llm import create_llm_as_judge
-
-        CUSTOM_PROMPT = '''
-        You are an expert evaluator. Rate the output quality on a scale of 0-1.
-
-        <input>
-        {inputs}
-        </input>
-
-        <output>
-        {outputs}
-        </output>
-
-        <reference>
-        {reference_outputs}
-        </reference>
-        '''
-
-        custom_evaluator = create_llm_as_judge(
-            prompt=CUSTOM_PROMPT,
-            feedback_key="quality",
-            model="openai:o3-mini",
-            continuous=True,  # Returns float (0.0-1.0) instead of boolean
-        )
-        ```
-
-        3️⃣ **Trajectory Evaluators for Multi-turn Conversations**
-
-        Trajectory evaluators evaluate entire conversation threads, useful for chat applications
-        and agents:
-
-        ```python
-        from openevals.llm import create_llm_as_judge
-
-        # Create a trajectory evaluator that looks at the full conversation
-        trajectory_evaluator = create_llm_as_judge(
-            model="openai:o3-mini",
-            prompt="Based on the below conversation, was the user satisfied?\\n{outputs}",
-            feedback_key="satisfaction",
-        )
-
-        # When using with evaluate, the outputs will be the full conversation trajectory
-        def wrapped_trajectory_evaluator(inputs, outputs, reference_outputs):
-            # outputs here will be a list of messages representing the conversation
-            return trajectory_evaluator(outputs=outputs)
-        ```
-
-        4️⃣ **Other Pre-built Evaluators**
-
-        OpenEvals also provides evaluators for:
-        - **Exact Match**: Compare outputs exactly
-        - **Embedding Similarity**: Compare using embeddings
-        - **Levenshtein Distance**: String similarity
-        - **Code Evaluators**: Type checking, execution (requires additional setup)
-
-        ```python
-        from openevals.exact import exact_match
-
-        # Simple exact match evaluator
-        def exact_match_evaluator(inputs, outputs, reference_outputs):
-            return exact_match(outputs=outputs, reference_outputs=reference_outputs)
-        ```
-
-        ---
-        📝 EVALUATOR WRAPPER PATTERN
-        -----------------------------
-        When using openevals evaluators with LangSmith's `evaluate()`, you may need to wrap them
-        to match the expected signature:
-
-        ```python
-        def wrap_openevals_evaluator(openevals_evaluator):
-            def wrapped(inputs, outputs, reference_outputs):
-                # openevals evaluators may have different parameter names
-                result = openevals_evaluator(
-                    inputs=inputs,
-                    outputs=outputs,
-                    reference_outputs=reference_outputs
-                )
-                return result
-            return wrapped
-
-        # Usage
-        wrapped_evaluator = wrap_openevals_evaluator(correctness_evaluator)
-        results = ls_client.evaluate(
-            app_function,
-            data=dataset.name,
-            evaluators=[wrapped_evaluator],
-        )
-        ```
-
-        ---
-        📤 RETURNS
-        ----------
-        None
-            This tool is documentation-only and returns None. The documentation is in the docstring.
-
-        ---
-        🧠 NOTES FOR AGENTS
-        --------------------
-        - This tool is **documentation-only** - it does not execute any code
-        - Use `evaluate()` for synchronous evaluation, `aevaluate()` for async (better for large jobs)
-        - Set `max_concurrency` to parallelize evaluation across multiple workers
-        - Custom evaluators can return bool, float, or dict with `key`, `score`, `comment`
-        - OpenEvals evaluators are pre-built and tested - use them when possible
-        - LLM-as-judge evaluators are flexible but cost money (API calls to judge model)
-        - Trajectory evaluators are useful for multi-turn conversations and agent evaluation
-        - Always ensure you have the required dependencies installed before using these patterns
-        - For agent-specific evaluations, consider using the `agentevals` package
-        - Evaluation results are stored as feedback in LangSmith and can be viewed in the UI
-        """  # noqa: W293
-        return None
+---
+🧠 NOTES FOR AGENTS
+--------------------
+- This tool is **documentation-only** - it does not execute any code
+- Use `evaluate()` for synchronous evaluation, `aevaluate()` for async (better for large jobs)
+- Set `max_concurrency` to parallelize evaluation across multiple workers
+- Custom evaluators can return bool, float, or dict with `key`, `score`, `comment`
+- OpenEvals evaluators are pre-built and tested - use them when possible
+- LLM-as-judge evaluators are flexible but cost money (API calls to judge model)
+- Trajectory evaluators are useful for multi-turn conversations and agent evaluation
+- Always ensure you have the required dependencies installed before using these patterns
+- For agent-specific evaluations, consider using the `agentevals` package
+- Evaluation results are stored as feedback in LangSmith and can be viewed in the UI
+"""
+        return documentation
