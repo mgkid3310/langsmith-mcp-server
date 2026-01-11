@@ -1,14 +1,40 @@
 """Tools for interacting with LangSmith traces and conversations."""
 
+import os
 from typing import Any, Dict, Iterable, List, Optional, Union
 
+try:
+    import requests
+    HAS_REQUESTS = True
+except ImportError:
+    HAS_REQUESTS = False
+
+from fastmcp.server import Context
 from langsmith import Client
 from langsmith.schemas import Run
 
+from langsmith_mcp_server.common.formatters import (
+    extract_messages_from_run,
+    format_messages,
+)
 from langsmith_mcp_server.common.helpers import (
     convert_uuids_to_strings,
     find_in_dict,
 )
+
+# Import context variables from middleware
+try:
+    from langsmith_mcp_server.middleware import (
+        api_key_context,
+        endpoint_context,
+        workspace_id_context,
+    )
+except ImportError:
+    # Fallback if middleware not available
+    from contextvars import ContextVar
+    api_key_context: ContextVar[str] = ContextVar("api_key", default="")
+    workspace_id_context: ContextVar[str] = ContextVar("workspace_id", default="")
+    endpoint_context: ContextVar[str] = ContextVar("endpoint", default="")
 
 
 def fetch_trace_tool(
@@ -256,6 +282,8 @@ def fetch_runs_tool(
     order_by: str = "-start_time",
     limit: int = 50,
     reference_example_id: Optional[str] = None,
+    format_type: str = "pretty",
+    ctx: Optional[Context] = None,
 ) -> Dict[str, Any]:
     """
     Fetch LangSmith runs (traces, tools, chains, etc.) from one or more projects
@@ -274,9 +302,121 @@ def fetch_runs_tool(
         order_by: The order by to apply to the runs
         limit: The limit to apply to the runs
         reference_example_id: The ID of the reference example to filter runs by
+        format_type: Output format for messages ('raw', 'json', or 'pretty'). Default: 'pretty'.
+                    When set, extracts and formats messages from runs for conversational AI use.
+                    When format_type is set, returns only the formatted output (not the runs).
+        ctx: Optional FastMCP context for getting API key and endpoint
     Returns:
-        Dictionary containing a "runs" key with a list of run dictionaries
+        Dictionary containing:
+        - If format_type is set: {"formatted": str} - formatted string representation of messages
+        - If format_type is not set: {"runs": List[Dict]} - list of run dictionaries
     """
+    # If format_type is set and trace_id is provided, use REST API directly
+    # This avoids unnecessary list_runs call and gets all messages from trace tree
+    if format_type and trace_id and HAS_REQUESTS:
+        try:
+            # Get API key, workspace ID, and base URL from context or environment
+            api_key = None
+            workspace_id = None
+            base_url = None
+
+            # Try to get from context first (supports both HTTP and STDIO)
+            if ctx:
+                api_key = ctx.get_state("api_key")
+                workspace_id = ctx.get_state("workspace_id")
+                endpoint = ctx.get_state("endpoint")
+                if endpoint:
+                    base_url = endpoint
+
+                # If not in session state, try context variables (set by middleware for HTTP transport)
+                if not api_key:
+                    try:
+                        api_key = api_key_context.get("")
+                        if api_key:
+                            workspace_id = workspace_id_context.get("") or None
+                            endpoint = endpoint_context.get("") or None
+                            if endpoint:
+                                base_url = endpoint
+                            # Store in session for future requests
+                            ctx.set_state("api_key", api_key)
+                            if workspace_id:
+                                ctx.set_state("workspace_id", workspace_id)
+                            if endpoint:
+                                ctx.set_state("endpoint", endpoint)
+                    except (RuntimeError, Exception):
+                        pass
+
+                # If still not found, try HTTP headers
+                if not api_key:
+                    try:
+                        request = ctx.get_http_request()
+                        if request:
+                            # Try request.state first (set by middleware), then headers
+                            if hasattr(request.state, "api_key") and request.state.api_key:
+                                api_key = request.state.api_key
+                                workspace_id = getattr(request.state, "workspace_id", None)
+                                endpoint = getattr(request.state, "endpoint", None)
+                                if endpoint:
+                                    base_url = endpoint
+                            else:
+                                # Fall back to headers directly
+                                api_key = request.headers.get("LANGSMITH-API-KEY")
+                                workspace_id = request.headers.get("LANGSMITH-WORKSPACE-ID")
+                                endpoint = request.headers.get("LANGSMITH-ENDPOINT")
+                                if endpoint:
+                                    base_url = endpoint
+                    except (RuntimeError, Exception):
+                        pass
+
+            # Fall back to environment variables
+            if not api_key:
+                api_key = os.environ.get("LANGSMITH_API_KEY")
+            if not workspace_id:
+                workspace_id = os.environ.get("LANGSMITH_WORKSPACE_ID")
+            if not base_url:
+                base_url = os.environ.get("LANGSMITH_ENDPOINT", "https://api.smith.langchain.com")
+
+            if not base_url.startswith("http"):
+                base_url = f"https://{base_url}"
+
+            if api_key:
+                # Use REST API to get trace with messages directly
+                headers = {"X-API-Key": api_key, "Content-Type": "application/json"}
+                # Add X-Tenant-Id header if workspace_id is provided
+                if workspace_id:
+                    headers["X-Tenant-Id"] = workspace_id
+
+                url = f"{base_url}/runs/{trace_id}?include_messages=true"
+
+                response = requests.get(url, headers=headers, timeout=30)
+                response.raise_for_status()
+
+                data = response.json()
+                # Convert UUIDs to strings for JSON serialization
+                run_dict = convert_uuids_to_strings(data)
+
+                # Extract messages - same logic as langsmith_cli
+                messages = data.get("messages")
+                if not messages:
+                    outputs = data.get("outputs")
+                    if isinstance(outputs, dict):
+                        output_messages = outputs.get("messages")
+                        messages = output_messages or []
+                    else:
+                        messages = []
+
+                # When format_type is set, return only the formatted output
+                if messages:
+                    formatted = format_messages(messages, format_type)
+                    return {"formatted": formatted}
+                else:
+                    # No messages found, return empty formatted output
+                    return {"formatted": "No messages found in this trace."}
+        except Exception:
+            # Fall back to list_runs if REST API fails
+            pass
+
+    # Default path: use list_runs (for non-format_type requests or when REST API fails)
     runs_iter: Iterable[Run] = client.list_runs(
         project_name=project_name,
         trace_id=trace_id,
@@ -296,4 +436,28 @@ def fetch_runs_tool(
         # Convert UUID objects to strings for JSON serialization
         run_dict = convert_uuids_to_strings(run_dict)
         runs_dict.append(run_dict)
+
+    # Extract and format messages if format_type is provided
+    if format_type:
+        all_messages = []
+        for run_dict in runs_dict:
+            try:
+                run_messages = extract_messages_from_run(run_dict)
+                if run_messages:
+                    all_messages.extend(run_messages)
+            except Exception:
+                # Log the error but continue processing other runs
+                # This prevents one malformed run from breaking the entire request
+                # The error is likely due to unexpected data structure in inputs/outputs
+                pass
+
+        # When format_type is set, return only the formatted output
+        if all_messages:
+            formatted = format_messages(all_messages, format_type)
+            return {"formatted": formatted}
+        else:
+            # No messages found, return empty formatted output
+            return {"formatted": "No messages found in the runs."}
+
+    # When format_type is not set, return runs as before
     return {"runs": runs_dict}

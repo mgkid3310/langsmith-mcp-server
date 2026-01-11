@@ -436,6 +436,7 @@ client = Client()  # Will automatically use environment variables
         order_by: str = "-start_time",
         limit: int = 50,
         reference_example_id: str = None,
+        format_type: str = "pretty",
         ctx: Context = None,
     ) -> Dict[str, Any]:
         """
@@ -535,11 +536,27 @@ client = Client()  # Will automatically use environment variables
             Filter runs by reference example ID. Returns only runs associated with
             the specified dataset example ID.
 
+        format_type : str, default "pretty"
+            Output format for extracted messages. Options:
+            - `"pretty"` (default): Human-readable formatted text focusing on human/AI/tool message exchanges
+            - `"json"`: Pretty-printed JSON format
+            - `"raw"`: Compact single-line JSON format
+            
+            When format_type is set, the tool extracts messages from runs and formats them,
+            making it ideal for conversational AI agents that care about message exchanges
+            rather than full trace details. The response returns only the formatted output:
+            - `formatted`: Formatted string representation of messages (when format_type is provided)
+            
+            When format_type is not set, the response returns:
+            - `runs`: Full run data
+
         ---
         📤 RETURNS
         ----------
-        List[dict]
-            A list of LangSmith `dict` objects that satisfy the query.
+        Dict[str, Any]
+            Dictionary containing:
+            - If format_type is set: `{"formatted": str}` - formatted string representation of messages
+            - If format_type is not set: `{"runs": List[Dict]}` - list of LangSmith run dictionaries
 
         ---
         🧪 EXAMPLES
@@ -581,6 +598,22 @@ client = Client()  # Will automatically use environment variables
         runs = fetch_runs("alpha-project", filter=fql)
         ```
 
+        7️⃣ **Get formatted messages for conversational AI (default: pretty format)**
+        ```python
+        # Returns formatted messages focusing on human/AI/tool exchanges
+        result = fetch_runs("alpha-project", limit=10, format_type="pretty")
+        # result["formatted"] contains human-readable formatted messages
+        # result["messages"] contains the raw message list
+        # result["runs"] contains full run data
+        ```
+
+        8️⃣ **Get messages in JSON format**
+        ```python
+        result = fetch_runs("alpha-project", limit=10, format_type="json")
+        # result["messages"] contains messages as JSON array
+        # result["formatted"] contains pretty-printed JSON string
+        ```
+
         ---
         🧠 NOTES FOR AGENTS
         --------------------
@@ -591,6 +624,8 @@ client = Client()  # Will automatically use environment variables
         - Returned `dict` objects have fields like:
         - `id`, `name`, `run_type`, `inputs`, `outputs`, `error`, `start_time`, `end_time`, `latency`, `metadata`, `feedback`, etc.
         - If the trace is big, save it to a file (if you have this ability) and analyze it locally.
+        - **For conversational AI agents**: Use `format_type="pretty"` (default) to get human-readable
+          message exchanges focusing on human/AI/tool messages rather than full trace details.
         """  # noqa: W293
         try:
             client = get_client_from_context(ctx)
@@ -617,6 +652,13 @@ client = Client()  # Will automatically use environment variables
                 elif is_root.lower() == "false":
                     parsed_is_root = False
 
+            # Validate format_type
+            valid_formats = ["raw", "json", "pretty"]
+            if format_type not in valid_formats:
+                return {
+                    "error": f"Invalid format_type: {format_type}. Must be one of {valid_formats}"
+                }
+
             return fetch_runs_tool(
                 client,
                 project_name=parsed_project_name,
@@ -630,6 +672,8 @@ client = Client()  # Will automatically use environment variables
                 order_by=order_by,
                 limit=limit,
                 reference_example_id=reference_example_id,
+                format_type=format_type,
+                ctx=ctx,
             )
         except Exception as e:
             return {"error": str(e)}

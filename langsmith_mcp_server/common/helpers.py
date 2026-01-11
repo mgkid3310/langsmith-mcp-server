@@ -10,6 +10,20 @@ from uuid import UUID
 from fastmcp.server import Context
 from langsmith import Client
 
+# Import context variables from middleware
+try:
+    from langsmith_mcp_server.middleware import (
+        api_key_context,
+        endpoint_context,
+        workspace_id_context,
+    )
+except ImportError:
+    # Fallback if middleware not available
+    from contextvars import ContextVar
+    api_key_context: ContextVar[str] = ContextVar("api_key", default="")
+    workspace_id_context: ContextVar[str] = ContextVar("workspace_id", default="")
+    endpoint_context: ContextVar[str] = ContextVar("endpoint", default="")
+
 
 def get_langsmith_client_from_api_key(
     api_key: str, workspace_id: Optional[str] = None, endpoint: Optional[str] = None
@@ -68,15 +82,37 @@ def get_client_from_context(ctx: Context) -> Client:
     workspace_id = ctx.get_state("workspace_id") or None
     endpoint = ctx.get_state("endpoint") or None
 
-    # If not in session, try to get from request headers (HTTP transport)
+    # If not in session, try to get from context variables (set by middleware for HTTP transport)
+    if not api_key:
+        try:
+            api_key = api_key_context.get("")
+            if api_key:
+                workspace_id = workspace_id_context.get("") or None
+                endpoint = endpoint_context.get("") or None
+                # Store in session for future requests
+                ctx.set_state("api_key", api_key)
+                if workspace_id:
+                    ctx.set_state("workspace_id", workspace_id)
+                if endpoint:
+                    ctx.set_state("endpoint", endpoint)
+        except (RuntimeError, Exception):
+            pass
+
+    # If still not found, try to get from request headers (HTTP transport)
     if not api_key:
         try:
             request = ctx.get_http_request()
             if request:
-                # HTTP transport: get from headers
-                api_key = request.headers.get("LANGSMITH-API-KEY")
-                workspace_id = request.headers.get("LANGSMITH-WORKSPACE-ID") or None
-                endpoint = request.headers.get("LANGSMITH-ENDPOINT") or None
+                # HTTP transport: try request.state first (set by middleware), then headers
+                if hasattr(request.state, "api_key") and request.state.api_key:
+                    api_key = request.state.api_key
+                    workspace_id = getattr(request.state, "workspace_id", None) or None
+                    endpoint = getattr(request.state, "endpoint", None) or None
+                else:
+                    # Fall back to headers directly
+                    api_key = request.headers.get("LANGSMITH-API-KEY")
+                    workspace_id = request.headers.get("LANGSMITH-WORKSPACE-ID") or None
+                    endpoint = request.headers.get("LANGSMITH-ENDPOINT") or None
 
                 # Store in session for future requests
                 if api_key:
