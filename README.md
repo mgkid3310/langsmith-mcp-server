@@ -1,8 +1,5 @@
 # 🦜🛠️ LangSmith MCP Server
 
-> [!WARNING]
-> LangSmith MCP Server is under active development and many features are not yet implemented.
-
 
 ![LangSmith MCP Hero](https://raw.githubusercontent.com/langchain-ai/langsmith-mcp-server/refs/heads/main/docs/assets/langsmith_mcp_hero.png)
 
