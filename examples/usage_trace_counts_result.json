@@ -1,0 +1,186 @@
+[
+  {
+    "customer_id": "1bcfa715-cc46-4fca-9e1f-eb28db619a6e",
+    "billable_metric_id": "66a67786-2a02-4370-8956-49b91419fc5e",
+    "billable_metric_name": "LangSmith Deployment Uptime Minutes (Production)",
+    "start_timestamp": "2026-01-01T00:00:00Z",
+    "end_timestamp": "2026-02-01T00:00:00Z",
+    "value": 2346213.0,
+    "groups": {
+      "0cc33507-0049-448c-8645-1160a473285b": {
+        "workspace_name": "Test workspace",
+        "value": 116179.0
+      }
+    }
+  },
+  {
+    "customer_id": "1bcfa715-cc46-4fca-9e1f-eb28db619a6e",
+    "billable_metric_id": "774c8f0b-e866-413a-8519-edc8ed6507a2",
+    "billable_metric_name": "LangSmith Agent Builder Runs (Cloud)",
+    "start_timestamp": "2026-01-01T00:00:00Z",
+    "end_timestamp": "2026-02-01T00:00:00Z",
+    "value": 11581.0,
+    "groups": {}
+  },
+  {
+    "customer_id": "1bcfa715-cc46-4fca-9e1f-eb28db619a6e",
+    "billable_metric_id": "7f2efa7f-5963-4676-8d9d-bb88c4babca3",
+    "billable_metric_name": "LangSmith Traces (Extended Data Retention Upgrades)",
+    "start_timestamp": "2026-01-01T00:00:00Z",
+    "end_timestamp": "2026-02-01T00:00:00Z",
+    "value": 716558.0,
+    "groups": {}
+  },
+  {
+    "customer_id": "1bcfa715-cc46-4fca-9e1f-eb28db619a6e",
+    "billable_metric_id": "a446ca80-b054-472a-ba74-a5be48c2303d",
+    "billable_metric_name": "LangSmith Traces (Base Charge)",
+    "start_timestamp": "2026-01-01T00:00:00Z",
+    "end_timestamp": "2026-02-01T00:00:00Z",
+    "value": 772246.0,
+    "groups": {
+      "0cc33507-0049-448c-8645-1160a473285b": {
+        "workspace_name": "Test workspace",
+        "value": 8266.0
+      }
+    }
+  },
+  {
+    "customer_id": "1bcfa715-cc46-4fca-9e1f-eb28db619a6e",
+    "billable_metric_id": "baffcbda-8816-4c6c-9cae-33db2ad59a25",
+    "billable_metric_name": "LangSmith Agent Builder Runs (Self-Hosted)",
+    "start_timestamp": "2026-01-01T00:00:00Z",
+    "end_timestamp": "2026-02-01T00:00:00Z",
+    "value": null,
+    "groups": null
+  },
+  {
+    "customer_id": "1bcfa715-cc46-4fca-9e1f-eb28db619a6e",
+    "billable_metric_id": "03aae94c-bd7d-4c0e-825c-87640552341a",
+    "billable_metric_name": "LangSmith Deployment Nodes Executed (Self-Hosted)",
+    "start_timestamp": "2026-01-01T00:00:00Z",
+    "end_timestamp": "2026-02-01T00:00:00Z",
+    "value": 4538.0,
+    "groups": null
+  },
+  {
+    "customer_id": "1bcfa715-cc46-4fca-9e1f-eb28db619a6e",
+    "billable_metric_id": "45d34598-962f-48ef-b29c-11f6b7891cf7",
+    "billable_metric_name": "LangSmith Deployment Uptime Minutes (Development)",
+    "start_timestamp": "2026-01-01T00:00:00Z",
+    "end_timestamp": "2026-02-01T00:00:00Z",
+    "value": 4229483.0,
+    "groups": {
+      "0cc33507-0049-448c-8645-1160a473285b": {
+        "workspace_name": "Test workspace",
+        "value": 194197.0
+      }
+    }
+  },
+  {
+    "customer_id": "1bcfa715-cc46-4fca-9e1f-eb28db619a6e",
+    "billable_metric_id": "65e33e0c-45da-4fb1-8b03-97f36ec93cdb",
+    "billable_metric_name": "LangSmith Deployment Nodes Executed (Cloud)",
+    "start_timestamp": "2026-01-01T00:00:00Z",
+    "end_timestamp": "2026-02-01T00:00:00Z",
+    "value": 5754556.0,
+    "groups": {
+      "0cc33507-0049-448c-8645-1160a473285b": {
+        "workspace_name": "Test workspace",
+        "value": 850.0
+      }
+    }
+  },
+  {
+    "customer_id": "1bcfa715-cc46-4fca-9e1f-eb28db619a6e",
+    "billable_metric_id": "774c8f0b-e866-413a-8519-edc8ed6507a2",
+    "billable_metric_name": "LangSmith Agent Builder Runs (Cloud)",
+    "start_timestamp": "2026-02-01T00:00:00Z",
+    "end_timestamp": "2026-03-01T00:00:00Z",
+    "value": 6662.0,
+    "groups": {}
+  },
+  {
+    "customer_id": "1bcfa715-cc46-4fca-9e1f-eb28db619a6e",
+    "billable_metric_id": "7f2efa7f-5963-4676-8d9d-bb88c4babca3",
+    "billable_metric_name": "LangSmith Traces (Extended Data Retention Upgrades)",
+    "start_timestamp": "2026-02-01T00:00:00Z",
+    "end_timestamp": "2026-03-01T00:00:00Z",
+    "value": 448764.0,
+    "groups": {}
+  },
+  {
+    "customer_id": "1bcfa715-cc46-4fca-9e1f-eb28db619a6e",
+    "billable_metric_id": "a446ca80-b054-472a-ba74-a5be48c2303d",
+    "billable_metric_name": "LangSmith Traces (Base Charge)",
+    "start_timestamp": "2026-02-01T00:00:00Z",
+    "end_timestamp": "2026-03-01T00:00:00Z",
+    "value": 489631.0,
+    "groups": {
+      "0cc33507-0049-448c-8645-1160a473285b": {
+        "workspace_name": "Test workspace",
+        "value": 3648.0
+      }
+    }
+  },
+  {
+    "customer_id": "1bcfa715-cc46-4fca-9e1f-eb28db619a6e",
+    "billable_metric_id": "baffcbda-8816-4c6c-9cae-33db2ad59a25",
+    "billable_metric_name": "LangSmith Agent Builder Runs (Self-Hosted)",
+    "start_timestamp": "2026-02-01T00:00:00Z",
+    "end_timestamp": "2026-03-01T00:00:00Z",
+    "value": null,
+    "groups": null
+  },
+  {
+    "customer_id": "1bcfa715-cc46-4fca-9e1f-eb28db619a6e",
+    "billable_metric_id": "03aae94c-bd7d-4c0e-825c-87640552341a",
+    "billable_metric_name": "LangSmith Deployment Nodes Executed (Self-Hosted)",
+    "start_timestamp": "2026-02-01T00:00:00Z",
+    "end_timestamp": "2026-03-01T00:00:00Z",
+    "value": 19360.0,
+    "groups": null
+  },
+  {
+    "customer_id": "1bcfa715-cc46-4fca-9e1f-eb28db619a6e",
+    "billable_metric_id": "45d34598-962f-48ef-b29c-11f6b7891cf7",
+    "billable_metric_name": "LangSmith Deployment Uptime Minutes (Development)",
+    "start_timestamp": "2026-02-01T00:00:00Z",
+    "end_timestamp": "2026-03-01T00:00:00Z",
+    "value": 1997650.0,
+    "groups": {
+      "0cc33507-0049-448c-8645-1160a473285b": {
+        "workspace_name": "Test workspace",
+        "value": 143073.0
+      }
+    }
+  },
+  {
+    "customer_id": "1bcfa715-cc46-4fca-9e1f-eb28db619a6e",
+    "billable_metric_id": "65e33e0c-45da-4fb1-8b03-97f36ec93cdb",
+    "billable_metric_name": "LangSmith Deployment Nodes Executed (Cloud)",
+    "start_timestamp": "2026-02-01T00:00:00Z",
+    "end_timestamp": "2026-03-01T00:00:00Z",
+    "value": 2048788.0,
+    "groups": {
+      "0cc33507-0049-448c-8645-1160a473285b": {
+        "workspace_name": "Test workspace",
+        "value": 141.0
+      }
+    }
+  },
+  {
+    "customer_id": "1bcfa715-cc46-4fca-9e1f-eb28db619a6e",
+    "billable_metric_id": "66a67786-2a02-4370-8956-49b91419fc5e",
+    "billable_metric_name": "LangSmith Deployment Uptime Minutes (Production)",
+    "start_timestamp": "2026-02-01T00:00:00Z",
+    "end_timestamp": "2026-03-01T00:00:00Z",
+    "value": 1128691.0,
+    "groups": {
+      "0cc33507-0049-448c-8645-1160a473285b": {
+        "workspace_name": "Test workspace",
+        "value": 94769.0
+      }
+    }
+  }
+]
