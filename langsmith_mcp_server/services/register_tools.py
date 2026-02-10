@@ -545,12 +545,12 @@ client = Client()  # Will automatically use environment variables
             - `"pretty"` (default): Human-readable formatted text focusing on human/AI/tool message exchanges
             - `"json"`: Pretty-printed JSON format
             - `"raw"`: Compact single-line JSON format
-            
+
             When format_type is set, the tool extracts messages from runs and formats them,
             making it ideal for conversational AI agents that care about message exchanges
             rather than full trace details. The response returns only the formatted output:
             - `formatted`: Formatted string representation of messages (when format_type is provided)
-            
+
             When format_type is not set, the response returns:
             - `runs`: Full run data
 

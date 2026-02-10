@@ -38,9 +38,7 @@ def _list_workspaces(api_key: str, endpoint: str) -> dict[str, Any] | list[Any]:
     return _request(api_key, endpoint, "/api/v1/workspaces")
 
 
-def _get_workspace_by_id(
-    api_key: str, endpoint: str, workspace_id: str
-) -> dict[str, Any]:
+def _get_workspace_by_id(api_key: str, endpoint: str, workspace_id: str) -> dict[str, Any]:
     """GET /api/v1/workspaces/{id}."""
     out = _request(api_key, endpoint, f"/api/v1/workspaces/{workspace_id}")
     return out if isinstance(out, dict) else {"error": "Unexpected response"}
@@ -58,11 +56,7 @@ def _build_workspace_id_to_name(
         if len(single_workspace) == 36 and single_workspace.count("-") == 4:
             resp = _get_workspace_by_id(api_key, endpoint, single_workspace)
             if isinstance(resp, dict) and "error" not in resp and resp.get("id"):
-                name = (
-                    resp.get("display_name")
-                    or resp.get("name")
-                    or single_workspace
-                )
+                name = resp.get("display_name") or resp.get("name") or single_workspace
                 id_to_name[str(resp["id"])] = name
                 return id_to_name
         ws_resp = _list_workspaces(api_key, endpoint)
@@ -70,9 +64,7 @@ def _build_workspace_id_to_name(
         if isinstance(ws_resp, list):
             workspaces = [w for w in ws_resp if isinstance(w, dict)]
         elif isinstance(ws_resp, dict) and "error" not in ws_resp:
-            workspaces = list(
-                ws_resp.get("workspaces") or ws_resp.get("items") or []
-            )
+            workspaces = list(ws_resp.get("workspaces") or ws_resp.get("items") or [])
         single_lower = single_workspace.lower()
         for w in workspaces:
             if not w.get("id"):
@@ -87,15 +79,11 @@ def _build_workspace_id_to_name(
     if isinstance(ws_resp, list):
         for w in ws_resp:
             if isinstance(w, dict) and w.get("id"):
-                id_to_name[str(w["id"])] = (
-                    w.get("display_name") or w.get("name") or str(w["id"])
-                )
+                id_to_name[str(w["id"])] = w.get("display_name") or w.get("name") or str(w["id"])
     elif isinstance(ws_resp, dict) and "error" not in ws_resp:
         for w in ws_resp.get("workspaces") or ws_resp.get("items") or []:
             if isinstance(w, dict) and w.get("id"):
-                id_to_name[str(w["id"])] = (
-                    w.get("display_name") or w.get("name") or str(w["id"])
-                )
+                id_to_name[str(w["id"])] = w.get("display_name") or w.get("name") or str(w["id"])
     return id_to_name
 
 
@@ -104,7 +92,12 @@ def _augment_usage_groups_with_names(
     workspace_id_to_name: dict[str, str],
     only_workspace_id: str | None = None,
 ) -> list[dict]:
-    """Put workspace_name next to each group value; optionally filter to one workspace."""
+    """Put workspace_name next to each group value; optionally filter to one workspace.
+
+    All workspace UUIDs from the billing API are preserved. If a UUID is not in
+    workspace_id_to_name (e.g. workspace not in /api/v1/workspaces list), it is
+    still included with workspace_name set to the raw UUID.
+    """
     result = copy.deepcopy(usage)
     for item in result:
         groups = (item or {}).get("groups")
@@ -114,6 +107,7 @@ def _augment_usage_groups_with_names(
         for uid, val in groups.items():
             if only_workspace_id and uid != only_workspace_id:
                 continue
+            # Keep every UUID; use id-to-name map or fall back to UUID as name
             name = workspace_id_to_name.get(uid) or uid
             new_groups[uid] = {"workspace_name": name, "value": val}
         item["groups"] = new_groups
@@ -154,19 +148,13 @@ def get_billing_usage_tool(
         "ending_before": ending_before,
         "on_current_plan": "true" if on_current_plan else "false",
     }
-    raw = _request(
-        api_key, endpoint, "/api/v1/orgs/current/billing/usage", params
-    )
+    raw = _request(api_key, endpoint, "/api/v1/orgs/current/billing/usage", params)
     if isinstance(raw, dict) and "error" in raw:
         return raw
     if not isinstance(raw, list) or not raw:
         return {"error": "Unexpected billing usage response"}
-    workspace_id_to_name = _build_workspace_id_to_name(
-        api_key, endpoint, workspace
-    )
+    workspace_id_to_name = _build_workspace_id_to_name(api_key, endpoint, workspace)
     only_workspace_id: str | None = None
     if workspace and workspace_id_to_name:
         only_workspace_id = next(iter(workspace_id_to_name.keys()), None)
-    return _augment_usage_groups_with_names(
-        raw, workspace_id_to_name, only_workspace_id
-    )
+    return _augment_usage_groups_with_names(raw, workspace_id_to_name, only_workspace_id)

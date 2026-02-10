@@ -225,14 +225,8 @@ def main() -> None:
     start_str = start.isoformat().replace("+00:00", "Z")
     end_str = end.isoformat().replace("+00:00", "Z")
 
-    print("1. Organization billing usage (trace counts for date range)")
-    if single_workspace:
-        print(f"   Single workspace: {single_workspace}")
-    print(f"   Range: {start_str} -> {end_str}")
     usage = get_org_billing_usage(start_str, end_str)
-    if isinstance(usage, dict) and "error" in usage:
-        print(f"   Error: {usage['error']}")
-    elif isinstance(usage, list) and usage:
+    if isinstance(usage, list) and usage:
         workspace_id_to_name = _build_workspace_id_to_name(single_workspace)
         only_workspace_id: str | None = None
         if single_workspace and workspace_id_to_name:
@@ -240,9 +234,7 @@ def main() -> None:
         augmented = _augment_usage_groups_with_names(
             usage, workspace_id_to_name, only_workspace_id
         )
-        print(json.dumps(augmented, indent=2))
 
-        # Verify: groups keys = workspace_id; optional granular section (console only)
         one_workspace_id: str | None = only_workspace_id
         if not one_workspace_id:
             for item in augmented:
@@ -251,51 +243,28 @@ def main() -> None:
                     one_workspace_id = next(iter(groups.keys()))
                     break
         if one_workspace_id:
-            print("\n   Verify: groups keys = workspace_id (tenant_id). Fetching granular usage for one:")
-            print(f"   workspace_id = {one_workspace_id}")
-            verify = get_granular_usage(
+            get_granular_usage(
                 start_time=start_str,
                 end_time=end_str,
                 workspace_ids=[one_workspace_id],
                 group_by="workspace",
             )
-            if "error" in verify:
-                print(f"   Verification result: {verify['error']}")
-            else:
-                ul = verify.get("usage", [])
-                print(f"   Verification OK: granular API returned {len(ul)} record(s) for this workspace_id.")
-                if ul:
-                    rec = ul[0]
-                    print(f"   Sample: time_bucket={rec.get('time_bucket')} dimensions={rec.get('dimensions')} traces={rec.get('traces')}")
 
         workspace_ids_str = os.getenv("LANGSMITH_WORKSPACE_IDS", "")
         workspace_ids = [w.strip() for w in workspace_ids_str.split(",") if w.strip()]
         if not workspace_ids and one_workspace_id:
             workspace_ids = [one_workspace_id]
         if workspace_ids:
-            print("\n2. Granular usage (by workspace)")
-            granular = get_granular_usage(
-                start_time=start_str, end_time=end_str,
-                workspace_ids=workspace_ids, group_by="workspace",
+            get_granular_usage(
+                start_time=start_str,
+                end_time=end_str,
+                workspace_ids=workspace_ids,
+                group_by="workspace",
             )
-            if "error" in granular:
-                print(f"   Error: {granular['error']}")
-            else:
-                for record in granular.get("usage", [])[:10]:
-                    dims = record.get("dimensions", {})
-                    tb = record.get("time_bucket", "")
-                    traces = record.get("traces", 0)
-                    print(f"   {tb}: {dims} -> {traces} traces")
-                if len(granular.get("usage", [])) > 10:
-                    print("   ...")
-        else:
-            print("\n2. Granular usage skipped (set LANGSMITH_WORKSPACE_IDS to enable)")
 
-        # Export: only the modified usage (no workspace_id_to_name, no granular_usage)
         output_path = os.path.join(os.path.dirname(__file__), "usage_trace_counts_result.json")
         with open(output_path, "w") as f:
             json.dump(augmented, f, indent=2)
-        print(f"\nFull result written to {output_path}")
 
 
 if __name__ == "__main__":

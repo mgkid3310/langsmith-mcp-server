@@ -5,6 +5,7 @@ from typing import Any, Dict, Iterable, List, Optional, Union
 
 try:
     import requests
+
     HAS_REQUESTS = True
 except ImportError:
     HAS_REQUESTS = False
@@ -32,6 +33,7 @@ try:
 except ImportError:
     # Fallback if middleware not available
     from contextvars import ContextVar
+
     api_key_context: ContextVar[str] = ContextVar("api_key", default="")
     workspace_id_context: ContextVar[str] = ContextVar("workspace_id", default="")
     endpoint_context: ContextVar[str] = ContextVar("endpoint", default="")

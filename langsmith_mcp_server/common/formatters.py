@@ -72,7 +72,6 @@ def _format_pretty(messages: List[Dict[str, Any]]) -> str:
         # Format content based on message type
         content = msg.get("content", "")
         tool_calls = msg.get("tool_calls", [])
-        tool_call_id = msg.get("tool_call_id")
         name = msg.get("name")
 
         # Handle tool responses - show tool name more prominently
@@ -109,7 +108,9 @@ def _format_pretty(messages: List[Dict[str, Any]]) -> str:
                             tool_input = item.get("input", {})
                             text_parts.append(f"\n[Tool Call: {tool_name}]")
                             if tool_input:
-                                text_parts.append(f"Input: {json.dumps(tool_input, indent=2, default=str)}")
+                                text_parts.append(
+                                    f"Input: {json.dumps(tool_input, indent=2, default=str)}"
+                                )
                         elif item["type"] == "image_url" and "image_url" in item:
                             text_parts.append(f"[Image: {item['image_url'].get('url', 'N/A')}]")
                         else:
@@ -153,7 +154,10 @@ def _format_pretty(messages: List[Dict[str, Any]]) -> str:
                                 args_str = json.dumps(parsed, indent=4, default=str)
                                 # Truncate very long arguments
                                 if len(args_str) > 400:
-                                    args_str = args_str[:400] + f"\n     ... (truncated {len(args_str) - 400:,} more characters)"
+                                    args_str = (
+                                        args_str[:400]
+                                        + f"\n     ... (truncated {len(args_str) - 400:,} more characters)"
+                                    )
                                 output_parts.append(f"     {args_str}")
                             except (json.JSONDecodeError, TypeError):
                                 # Truncate string arguments too
@@ -164,7 +168,10 @@ def _format_pretty(messages: List[Dict[str, Any]]) -> str:
                         else:
                             args_str = json.dumps(tool_args, indent=4, default=str)
                             if len(args_str) > 400:
-                                args_str = args_str[:400] + f"\n     ... (truncated {len(args_str) - 400:,} more characters)"
+                                args_str = (
+                                    args_str[:400]
+                                    + f"\n     ... (truncated {len(args_str) - 400:,} more characters)"
+                                )
                             output_parts.append(f"     {args_str}")
 
         # Handle additional metadata (only show for debugging, commented out for cleaner output)
@@ -180,16 +187,18 @@ def _format_pretty(messages: List[Dict[str, Any]]) -> str:
     return "\n".join(output_parts)
 
 
-def _extract_messages_from_dict(data: Any, path: str = "", depth: int = 0, max_depth: int = 5) -> List[Dict[str, Any]]:
+def _extract_messages_from_dict(
+    data: Any, path: str = "", depth: int = 0, max_depth: int = 5
+) -> List[Dict[str, Any]]:
     """
     Recursively extract messages from nested dictionary structures.
-    
+
     Args:
         data: Dictionary, list, or other data structure to search
         path: Current path in the structure (for debugging)
         depth: Current recursion depth
         max_depth: Maximum recursion depth to avoid infinite loops
-    
+
     Returns:
         List of message dictionaries found
     """
@@ -230,7 +239,9 @@ def _extract_messages_from_dict(data: Any, path: str = "", depth: int = 0, max_d
         # Recursively search nested dictionaries
         for key, value in data.items():
             if isinstance(value, (dict, list)):
-                nested_msgs = _extract_messages_from_dict(value, f"{path}.{key}", depth + 1, max_depth)
+                nested_msgs = _extract_messages_from_dict(
+                    value, f"{path}.{key}", depth + 1, max_depth
+                )
                 messages.extend(nested_msgs)
 
     elif isinstance(data, list):
