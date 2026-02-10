@@ -6,7 +6,10 @@ from typing import Any, Dict, Optional
 from fastmcp import FastMCP
 from fastmcp.server import Context
 
-from langsmith_mcp_server.common.helpers import get_client_from_context
+from langsmith_mcp_server.common.helpers import (
+    get_api_key_and_endpoint_from_context,
+    get_client_from_context,
+)
 from langsmith_mcp_server.services.tools.datasets import (
     list_datasets_tool,
     list_examples_tool,
@@ -24,6 +27,7 @@ from langsmith_mcp_server.services.tools.traces import (
     fetch_runs_tool,
     list_projects_tool,
 )
+from langsmith_mcp_server.services.tools.usage import get_billing_usage_tool
 
 
 def register_tools(mcp: FastMCP) -> None:
@@ -800,6 +804,48 @@ client = Client()  # Will automatically use environment variables
                 reference_dataset_id=reference_dataset_id,
                 reference_dataset_name=reference_dataset_name,
             )
+        except Exception as e:
+            return {"error": str(e)}
+
+    @mcp.tool()
+    def get_billing_usage(
+        starting_on: str,
+        ending_before: str,
+        workspace: Optional[str] = None,
+        on_current_plan: str = "true",
+        ctx: Context = None,
+    ) -> Dict[str, Any]:
+        """
+        Fetch organization billing usage (trace counts) with workspace names inline.
+
+        Returns metrics from GET /api/v1/orgs/current/billing/usage. Each metric's
+        `groups` is augmented to { workspace_uuid: { "workspace_name": "<name>", "value": <number> } }.
+        If workspace is provided (UUID or display name), only that workspace's entries
+        are included in each metric's groups.
+
+        Args:
+            starting_on: Start of date range (ISO 8601), e.g. "2025-09-01T00:00:00Z"
+            ending_before: End of date range (ISO 8601), e.g. "2025-10-01T00:00:00Z"
+            workspace: Optional single workspace UUID or display name to filter to
+            on_current_plan: "true" to include only usage on current plan (default)
+
+        Returns:
+            List of billing metric objects with augmented groups, or dict with "error" key
+        """
+        try:
+            api_key, endpoint = get_api_key_and_endpoint_from_context(ctx)
+            on_current = on_current_plan.lower() == "true"
+            result = get_billing_usage_tool(
+                api_key=api_key,
+                endpoint=endpoint,
+                starting_on=starting_on,
+                ending_before=ending_before,
+                on_current_plan=on_current,
+                workspace=workspace,
+            )
+            if isinstance(result, dict) and "error" in result:
+                return result
+            return {"usage": result}
         except Exception as e:
             return {"error": str(e)}
 
