@@ -142,6 +142,26 @@ def get_client_from_context(ctx: Context) -> Client:
     return get_langsmith_client_from_api_key(api_key, workspace_id=workspace_id, endpoint=endpoint)
 
 
+def get_api_key_and_endpoint_from_context(ctx: Context) -> tuple[str, str]:
+    """
+    Get API key and endpoint from FastMCP context (same sources as get_client_from_context).
+    Used by tools that call LangSmith REST APIs directly (e.g. billing/usage).
+
+    Args:
+        ctx: FastMCP context (automatically provided to tools).
+
+    Returns:
+        Tuple of (api_key, endpoint). endpoint is normalized (no trailing slash).
+
+    Raises:
+        ValueError: If API key is not found.
+    """
+    get_client_from_context(ctx)  # populates ctx state (api_key, endpoint)
+    api_key = ctx.get_state("api_key")
+    endpoint = ctx.get_state("endpoint") or "https://api.smith.langchain.com"
+    return (str(api_key), str(endpoint).rstrip("/"))
+
+
 def get_langgraph_app_host_name(run_stats: dict) -> Optional[str]:
     """
     Get the langgraph app host name from the run stats

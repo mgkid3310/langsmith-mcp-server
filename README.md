@@ -265,6 +265,44 @@ curl http://localhost:8000/health
 
 This endpoint does not require authentication and returns `"LangSmith MCP server is running"` when the server is healthy.
 
+**Note:** The Dockerfile is for container runtimes (e.g. Railway, Fly.io, Google Cloud Run). Vercel does not run Docker containers; use the [Vercel deployment](#-vercel-deployment) below instead.
+
+## ▲ Vercel Deployment (Serverless)
+
+You can deploy the LangSmith MCP Server to [Vercel](https://vercel.com) as a serverless function. The repo includes `api/index.py` and `vercel.json` for this.
+
+### Deploy
+
+1. Install the [Vercel CLI](https://vercel.com/docs/cli) and link your project:
+   ```bash
+   npx vercel link
+   ```
+
+2. Set your LangSmith API key in the project [Environment Variables](https://vercel.com/docs/projects/environment-variables):
+   - Name: `LANGSMITH_API_KEY`
+   - Value: your `lsv2_pt_...` key
+
+3. Deploy:
+   ```bash
+   npx vercel --prod
+   ```
+
+Your MCP server will be available at `https://<your-project>.vercel.app`. Use the same headers as Docker (`LANGSMITH-API-KEY`, etc.) when connecting. The `/health` endpoint is at `https://<your-project>.vercel.app/health`.
+
+**Cursor (Streamable HTTP)** – point the URL to your Vercel deployment:
+```json
+{
+  "mcpServers": {
+    "LangSmith MCP Server": {
+      "url": "https://<your-project>.vercel.app",
+      "headers": {
+        "LANGSMITH-API-KEY": "lsv2_pt_your_api_key_here"
+      }
+    }
+  }
+}
+```
+
 ## 🧪 Development and Contributing 🤝
 
 If you want to develop or contribute to the LangSmith MCP Server, follow these steps:
