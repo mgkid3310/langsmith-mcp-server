@@ -289,7 +289,7 @@ You can deploy the LangSmith MCP Server to [Vercel](https://vercel.com) as a ser
 
 Your MCP server will be available at `https://<your-project>.vercel.app`. Use the same headers as Docker (`LANGSMITH-API-KEY`, etc.) when connecting. The `/health` endpoint is at `https://<your-project>.vercel.app/health`.
 
-**Cursor (Streamable HTTP)** – point the URL to your Vercel deployment
+**Cursor (Streamable HTTP)** – point the URL to your Vercel deployment:
 ```json
 {
   "mcpServers": {
