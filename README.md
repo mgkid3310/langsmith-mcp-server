@@ -6,58 +6,104 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.10](https://img.shields.io/badge/python-3.10-blue.svg)](https://www.python.org/downloads/release/python-3100/)
 
-A production-ready [Model Context Protocol](https://modelcontextprotocol.io/introduction) (MCP) server that provides seamless integration with the [LangSmith](https://smith.langchain.com) observability platform. This server enables language models to fetch conversation history and prompts from LangSmith.
+A production-ready [Model Context Protocol](https://modelcontextprotocol.io/introduction) (MCP) server that provides seamless integration with the [LangSmith](https://smith.langchain.com) observability platform. This server enables language models to fetch conversation history, prompts, runs and traces, datasets, experiments, and billing usage from LangSmith.
 
-## 📋 Overview
-
-The LangSmith MCP Server bridges the gap between language models and the LangSmith platform, enabling advanced capabilities for conversation tracking, prompt management, and analytics integration.
-
-## 🚀 Example Use Cases
+## 📋 Example Use Cases
 
 The server enables powerful capabilities including:
 
-- 💬 **Conversation History**: "Fetch the history of my conversation with the AI assistant from thread 'thread-123' in project 'my-chatbot'"
-- 📚 **Prompt Management**: "Get all public prompts in my workspace"
-- 🔍 **Smart Search**: "Find private prompts containing the word 'joke'"
-- 📝 **Template Access**: "Pull the template for the 'legal-case-summarizer' prompt"
-- 🔧 **Configuration**: "Get the system message from a specific prompt template"
+- 💬 **Conversation History**: "Fetch the history of my conversation from thread 'thread-123' in project 'my-chatbot'" (paginated by character budget)
+- 📚 **Prompt Management**: "Get all public prompts in my workspace" / "Pull the template for the 'legal-case-summarizer' prompt"
+- 🔍 **Traces & Runs**: "Fetch the latest 10 root runs from project 'alpha'" / "Get all runs for trace &lt;uuid&gt; (page 2 of 5)"
+- 📊 **Datasets**: "List datasets of type chat" / "Read examples from dataset 'customer-support-qa'"
+- 🧪 **Experiments**: "List experiments for dataset 'my-eval-set' with latency and cost metrics"
+- 📈 **Billing**: "Get billing usage for September 2025"
+
+## 🚀 Quickstart
+
+A **hosted version** of the LangSmith MCP Server is available over HTTP-streamable transport, so you can connect without running the server yourself:
+
+- **URL:** `https://langsmith-mcp-server.onrender.com/mcp`
+- **Hosting:** [Render](https://render.com), built from this public repo using the project's Dockerfile.
+
+Use it like any HTTP-streamable MCP server: point your client at the URL and send your LangSmith API key in the `LANGSMITH-API-KEY` header. No local install or Docker required.
+
+**Example (Cursor `mcp.json`):**
+```json
+{
+  "mcpServers": {
+    "LangSmith MCP (Hosted)": {
+      "url": "https://langsmith-mcp-server.onrender.com/mcp",
+      "headers": {
+        "LANGSMITH-API-KEY": "lsv2_pt_your_api_key_here"
+      }
+    }
+  }
+}
+```
+
+Optional headers: `LANGSMITH-WORKSPACE-ID`, `LANGSMITH-ENDPOINT` (same as in the [Docker Deployment](#-docker-deployment-http-streamable) section below).
+
+> **Note:** This deployed instance is intended for [LangSmith Cloud](https://smith.langchain.com). If you use a **self-hosted** LangSmith instance, run the server yourself and point it at your endpoint—see the [Docker Deployment](#-docker-deployment-http-streamable) section below.
 
 ## 🛠️ Available Tools
 
-The LangSmith MCP Server provides the following tools for integration with LangSmith:
+The LangSmith MCP Server provides the following tools for integration with LangSmith.
+
+### 💬 Conversation & Threads
+
+| Tool Name | Description |
+|-----------|-------------|
+| `get_thread_history` | Retrieve message history for a conversation thread. Uses **char-based pagination**: pass `page_number` (1-based), and use returned `total_pages` to request more pages. Optional `max_chars_per_page` and `preview_chars` control page size and long-string truncation. |
 
 ### 📚 Prompt Management
 
 | Tool Name | Description |
 |-----------|-------------|
-| `list_prompts` | Fetch prompts from LangSmith with optional filtering. Filter by visibility (public/private) and limit results. |
+| `list_prompts` | Fetch prompts from LangSmith with optional filtering by visibility (public/private) and limit. |
 | `get_prompt_by_name` | Get a specific prompt by its exact name, returning the prompt details and template. |
-| `push_prompt` | Documentation tool for understanding how to create and push prompts to LangSmith (documentation-only). |
+| `push_prompt` | Documentation-only: how to create and push prompts to LangSmith. |
 
 ### 🔍 Traces & Runs
 
 | Tool Name | Description |
 |-----------|-------------|
-| `fetch_runs` | Fetch LangSmith runs (traces, tools, chains, etc.) from one or more projects using flexible filters, query language expressions, and trace-level constraints. |
-| `list_projects` | List LangSmith projects with optional filtering and detail level control. Can return simplified or full project information. |
-| `list_experiments` | List LangSmith experiment projects (reference projects) with mandatory dataset filtering. Returns experiment information with key metrics (latency, cost, feedback stats). |
+| `fetch_runs` | Fetch LangSmith runs (traces, tools, chains, etc.) from one or more projects. Supports filters (run_type, error, is_root), FQL (`filter`, `trace_filter`, `tree_filter`), and ordering. When `trace_id` is set, returns **char-based paginated** pages; otherwise returns one batch up to `limit`. Always pass `limit` and `page_number`. |
+| `paginate_runs` | Fetch one page of runs for a **single trace** (stateless, char-based pagination). Use `page_number` and returned `total_pages` to iterate. Ideal when you already have a trace_id and want predictable page sizes. |
+| `list_projects` | List LangSmith projects with optional filtering by name, dataset, and detail level (simplified vs full). |
 
 ### 📊 Datasets & Examples
 
 | Tool Name | Description |
 |-----------|-------------|
-| `list_datasets` | Fetch LangSmith datasets with filtering options by ID, type, name, or metadata. |
-| `list_examples` | Fetch examples from a LangSmith dataset with advanced filtering options. |
-| `read_dataset` | Read a specific dataset from LangSmith using dataset ID or name. |
-| `read_example` | Read a specific example from LangSmith using the example ID and optional version information. |
-| `create_dataset` | Documentation tool for understanding how to create datasets in LangSmith (documentation-only). |
-| `update_examples` | Documentation tool for understanding how to update dataset examples in LangSmith (documentation-only). |
+| `list_datasets` | Fetch datasets with filtering by ID, type, name, name substring, or metadata. |
+| `list_examples` | Fetch examples from a dataset by dataset ID/name or example IDs, with filter, metadata, splits, and optional `as_of` version. |
+| `read_dataset` | Read a single dataset by ID or name. |
+| `read_example` | Read a single example by ID, with optional `as_of` version. |
+| `create_dataset` | Documentation-only: how to create datasets in LangSmith. |
+| `update_examples` | Documentation-only: how to update dataset examples in LangSmith. |
 
 ### 🧪 Experiments & Evaluations
 
 | Tool Name | Description |
 |-----------|-------------|
-| `run_experiment` | Documentation tool for understanding how to run experiments and evaluations in LangSmith (documentation-only). |
+| `list_experiments` | List experiment projects (reference projects) for a dataset. Requires `reference_dataset_id` or `reference_dataset_name`. Returns key metrics (latency, cost, feedback stats). |
+| `run_experiment` | Documentation-only: how to run experiments and evaluations in LangSmith. |
+
+### 📈 Usage & Billing
+
+| Tool Name | Description |
+|-----------|-------------|
+| `get_billing_usage` | Fetch organization billing usage (e.g. trace counts) for a date range. Optional workspace filter; returns metrics with workspace names inline. |
+
+### 📄 Pagination (char-based)
+
+Several tools use **stateless, character-budget pagination** so responses stay within a size limit and work well with LLM clients:
+
+- **Where it’s used:** `get_thread_history`, `fetch_runs` (when `trace_id` is set), and `paginate_runs`.
+- **Parameters:** You send `page_number` (1-based) on every request. Optional: `max_chars_per_page` (default 25000, cap 30000) and `preview_chars` (truncate long strings with "… (+N chars)").
+- **Response:** Each response includes `page_number`, `total_pages`, and the page payload (`result` for messages, `runs` for runs). To get more, call again with `page_number = 2`, then `3`, up to `total_pages`.
+- **Why it’s useful:** Pages are built by JSON character count, not item count, so each page fits within a fixed size. No cursor or server-side state—just integer page numbers.
 
 ## 🛠️ Installation Options
 
@@ -106,7 +152,7 @@ Once you have the LangSmith MCP Server, you can integrate it with various MCP-co
 
 #### ⚙️ From Source
 
-Add the following configuration to your MCP client settings:
+Add the following configuration to your MCP client settings (run from the **project root** so the package is found):
 
 ```json
 {
@@ -115,9 +161,9 @@ Add the following configuration to your MCP client settings:
             "command": "/path/to/uv",
             "args": [
                 "--directory",
-                "/path/to/langsmith-mcp-server/langsmith_mcp_server",
+                "/path/to/langsmith-mcp-server",
                 "run",
-                "server.py"
+                "langsmith_mcp_server/server.py"
             ],
             "env": {
                 "LANGSMITH_API_KEY": "your_langsmith_api_key",
@@ -130,23 +176,21 @@ Add the following configuration to your MCP client settings:
 ```
 
 Replace the following placeholders:
-- `/path/to/uv`: The absolute path to your uv installation (e.g., `/Users/username/.local/bin/uv`). You can find it running `which uv`.
-- `/path/to/langsmith-mcp-server`: The absolute path to your langsmith-mcp project directory
-- `your_langsmith_api_key`: Your LangSmith API key (required)
-- `your_workspace_id`: Your LangSmith workspace ID (optional, for API keys scoped to multiple workspaces)
-- `https://api.smith.langchain.com`: The LangSmith API endpoint (optional, defaults to the standard endpoint)
+- `/path/to/uv`: The absolute path to your uv installation (e.g., `/Users/username/.local/bin/uv`). You can find it with `which uv`.
+- `/path/to/langsmith-mcp-server`: The absolute path to the **project root** (the directory containing `pyproject.toml` and `langsmith_mcp_server/`).
+- `your_langsmith_api_key`: Your LangSmith API key (required).
+- `your_workspace_id`: Your LangSmith workspace ID (optional, for API keys scoped to multiple workspaces).
+- `https://api.smith.langchain.com`: The LangSmith API endpoint (optional, defaults to the standard endpoint).
 
-Example configuration:
+Example configuration (PyPI/uvx):
 ```json
 {
     "mcpServers": {
         "LangSmith API MCP Server": {
-            "command": "/Users/mperini/.local/bin/uvx",
-            "args": [
-                "langsmith-mcp-server"
-            ],
+            "command": "/path/to/uvx",
+            "args": ["langsmith-mcp-server"],
             "env": {
-                "LANGSMITH_API_KEY": "lsv2_pt_1234",
+                "LANGSMITH_API_KEY": "lsv2_pt_your_key_here",
                 "LANGSMITH_WORKSPACE_ID": "your_workspace_id",
                 "LANGSMITH_ENDPOINT": "https://api.smith.langchain.com"
             }
@@ -155,7 +199,7 @@ Example configuration:
 }
 ```
 
-Copy this configuration in Cursor > MCP Settings.
+Copy this configuration into Cursor → MCP Settings (replace `/path/to/uvx` with the output of `which uvx`).
 
 ![LangSmith Cursor Integration](docs/assets/cursor_mcp.png)
 
@@ -173,6 +217,7 @@ The LangSmith MCP Server supports the following environment variables:
 - Only `LANGSMITH_API_KEY` is required for basic functionality
 - `LANGSMITH_WORKSPACE_ID` is useful when your API key has access to multiple workspaces
 - `LANGSMITH_ENDPOINT` allows you to use custom endpoints for self-hosted LangSmith installations or the EU region
+
 
 ## 🐳 Docker Deployment (HTTP-Streamable)
 
