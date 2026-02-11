@@ -24,7 +24,9 @@ from langsmith_mcp_server.services.tools.prompts import (
     list_prompts_tool,
 )
 from langsmith_mcp_server.services.tools.traces import (
+    fetch_runs_paginated_tool,
     fetch_runs_tool,
+    get_thread_history_tool,
     list_projects_tool,
 )
 from langsmith_mcp_server.services.tools.usage import get_billing_usage_tool
@@ -362,74 +364,52 @@ client = Client()  # Will automatically use environment variables
         return documentation
 
     # Register conversation tools
-    # @mcp.tool()
-    # def get_thread_history(thread_id: str, project_name: str, ctx: Context = None) -> Dict[str, Any]:
-    #     """
-    #     Retrieve the message history for a specific conversation thread.
+    @mcp.tool()
+    def get_thread_history(
+        thread_id: str,
+        project_name: str,
+        page_number: int,
+        max_chars_per_page: int = 25000,
+        preview_chars: int = 150,
+        ctx: Context = None,
+    ) -> Dict[str, Any]:
+        """
+        Retrieve one page of message history for a specific conversation thread.
 
-    #     Args:
-    #         thread_id (str): The unique ID of the thread to fetch history for
-    #         project_name (str): The name of the project containing the thread
-    #                            (format: "owner/project" or just "project")
+        Uses char-based pagination: pages are built by character budget (max_chars_per_page).
+        Long strings are truncated to preview_chars. Supply page_number (1-based) on every call;
+        use the returned total_pages to request further pages.
 
-    #     Returns:
-    #         Dict[str, Any]: Dictionary containing the thread history,
-    #                             or an error message if the thread cannot be found
-    #     """
-    #     try:
-    #         client = get_client_from_context(ctx)
-    #         return get_thread_history_tool(client, thread_id, project_name)
-    #     except Exception as e:
-    #         return {"error": str(e)}
+        Args:
+            thread_id (str): The unique ID of the thread to fetch history for
+            project_name (str): The name of the project containing the thread
+                               (format: "owner/project" or just "project")
+            page_number (int): 1-based page index (required)
+            max_chars_per_page (int): Max character count per page, capped at 30000 (default: 25000)
+            preview_chars (int): Truncate long strings to this length with "… (+N chars)" (default: 150)
 
-    # Register analytics tools
-    # @mcp.tool()
-    # def get_project_runs_stats(project_name: str = None, trace_id: str = None, ctx: Context = None) -> Dict[str, Any]:
-    #     """
-    #     Get statistics about runs in a LangSmith project.
-
-    #     Args:
-    #         project_name (str): The name of the project to analyze
-    #                           (format: "owner/project" or just "project")
-    #         trace_id (str): The specific ID of the trace to fetch (preferred parameter)
-
-    #     Returns:
-    #         Dict[str, Any]: Dictionary containing the requested project run statistics
-    #                       or an error message if statistics cannot be retrieved
-    #     """
-    #     try:
-    #         client = get_client_from_context(ctx)
-    #         return get_project_runs_stats_tool(client, project_name, trace_id)
-    #     except Exception as e:
-    #         return {"error": str(e)}
-
-    # # Register trace tools
-    # @mcp.tool()
-    # def fetch_trace(project_name: str = None, trace_id: str = None, ctx: Context = None) -> Dict[str, Any]:
-    #     """
-    #     Fetch trace content for debugging and analyzing LangSmith runs.
-
-    #     Note: Only one parameter (project_name or trace_id) is required.
-    #     If both are provided, trace_id is preferred.
-    #     String "null" inputs are handled as None values.
-
-    #     Args:
-    #         project_name (str, optional): The name of the project to fetch the latest trace from
-    #         trace_id (str, optional): The specific ID of the trace to fetch (preferred parameter)
-
-    #     Returns:
-    #         Dict[str, Any]: Dictionary containing the trace data and metadata,
-    #                       or an error message if the trace cannot be found
-    #     """
-    #     try:
-    #         client = get_client_from_context(ctx)
-    #         return fetch_trace_tool(client, project_name, trace_id)
-    #     except Exception as e:
-    #         return {"error": str(e)}
+        Returns:
+            Dict with result (list of messages), page_number, total_pages, max_chars_per_page,
+            preview_chars; or an error message if the thread cannot be found
+        """
+        try:
+            client = get_client_from_context(ctx)
+            return get_thread_history_tool(
+                client,
+                thread_id,
+                project_name,
+                page_number=page_number,
+                max_chars_per_page=max_chars_per_page,
+                preview_chars=preview_chars,
+            )
+        except Exception as e:
+            return {"error": str(e)}
 
     @mcp.tool()
     def fetch_runs(
         project_name: str,
+        limit: int,
+        page_number: int,
         trace_id: str = None,
         run_type: str = None,
         error: str = None,
@@ -438,211 +418,135 @@ client = Client()  # Will automatically use environment variables
         trace_filter: str = None,
         tree_filter: str = None,
         order_by: str = "-start_time",
-        limit: int = 50,
         reference_example_id: str = None,
-        format_type: str = "pretty",
+        max_chars_per_page: int = 25000,
+        preview_chars: int = 150,
         ctx: Context = None,
     ) -> Dict[str, Any]:
         """
-        Fetch LangSmith runs (traces, tools, chains, etc.) from one or more projects
-        using flexible filters, query language expressions, and trace-level constraints.
+        Fetch LangSmith runs from one or more projects with flexible filters.
+
+        Pagination is always used: you must supply limit and page_number on every call.
+        - When trace_id is provided: returns one page of runs for that trace. Use
+          page_number (1-based) and the returned total_pages to request further pages.
+          All runs in every page belong to the same trace.
+        - When trace_id is not provided: returns one page of runs (up to limit items).
+          Use page_number=1 for the first batch; for more results you may need to use
+          filters (e.g. order_by, time range) or trace_id to narrow and paginate.
 
         ---
-        🧩 PURPOSE
-        ----------
-        This is a **general-purpose LangSmith run fetcher** designed for analytics,
-        trace export, and automated exploration.
-
-        It wraps `client.list_runs()` with complete support for:
-        - Multiple project names or IDs
-        - The **Filter Query Language (FQL)** for precise queries
-        - Hierarchical filtering across trace trees
-        - Sorting and result limiting
-
-        It returns **raw `dict` objects** suitable for further analysis or export.
+        📤 RETURNS (always pagination-aware)
+        -------------------------------------
+        When trace_id is set: dict with runs, page_number, total_pages, max_chars_per_page, preview_chars.
+        When trace_id is not set: dict with key `runs` (list of run dictionaries). Always respect limit.
 
         ---
-        ⚙️ PARAMETERS
-        -------------
+        ⚙️ PARAMETERS (required)
+        ------------------------
         project_name : str
-            The project name to fetch runs from. For multiple projects, use JSON array string (e.g., '["project1", "project2"]').
+            The project name to fetch runs from. For multiple projects, use JSON array string:
+            '["project1", "project2"]'
+
+        limit : int (required)
+            Maximum number of runs to return per page (capped at 100 by LangSmith API).
+            Always specify; controls both trace pagination and non-trace list size.
+
+        page_number : int (required)
+            1-based page index. When trace_id is set, use with total_pages to iterate;
+            when trace_id is not set, use 1 for the first (and only) page of the filtered list.
 
         trace_id : str, optional
-            Return only runs that belong to a specific trace tree.
-            It is a UUID string, e.g. "123e4567-e89b-12d3-a456-426614174000".
+            Return only runs that belong to this trace. When set, response is paginated;
+            every page contains runs from this same trace. UUID, e.g. "123e4567-e89b-12d3-a456-426614174000".
 
         run_type : str, optional
-            Filter runs by type (e.g. "llm", "chain", "tool", "retriever").
+            Filter runs by type: "llm", "chain", "tool", "retriever".
 
         error : str, optional
-            Filter by error status: "true" for errored runs, "false" for successful runs.
+            "true" for errored runs, "false" for successful runs.
 
         is_root : str, optional
-            Filter root traces: "true" for only top-level traces, "false" to exclude roots.
-            If not provided, returns all runs.
+            "true" for only top-level traces, "false" to exclude roots. If not provided, returns all runs.
 
         filter : str, optional
-            A **Filter Query Language (FQL)** expression that filters runs by fields,
-            metadata, tags, feedback, latency, or time.
+            Filter Query Language (FQL) expression. Common field names:
+            id, name, run_type, start_time, end_time, latency, total_tokens, error, tags,
+            feedback_key, feedback_score, metadata_key, metadata_value, execution_order.
+            Comparators: eq, neq, gt, gte, lt, lte, has, search, and, or, not.
 
-            ─── Common field names ───
-            - `id`, `name`, `run_type`
-            - `start_time`, `end_time`
-            - `latency`
-            - `total_tokens`
-            - `error`
-            - `tags`
-            - `feedback_key`, `feedback_score`
-            - `metadata_key`, `metadata_value`
-            - `execution_order`
-
-            ─── Supported comparators ───
-            - `eq`, `neq` → equal / not equal
-            - `gt`, `gte`, `lt`, `lte` → numeric or time comparisons
-            - `has` → tag or metadata contains value
-            - `search` → substring or full-text match
-            - `and`, `or`, `not` → logical operators
-
-            ─── Examples ───
-            ```python
+            Examples:
             'gt(latency, "5s")'                                # took longer than 5 seconds
-            'neq(error, null)'                                  # errored runs
-            'has(tags, "beta")'                                 # runs tagged "beta"
-            'and(eq(name,"ChatOpenAI"), eq(run_type,"llm"))'    # named & typed runs
-            'search("image classification")'                    # full-text search
-            ```
+            'neq(error, null)'                                 # errored runs
+            'has(tags, "beta")'                                # runs tagged "beta"
+            'and(eq(name,"ChatOpenAI"), eq(run_type,"llm"))'   # named & typed runs
+            'search("image classification")'                  # full-text search
 
         trace_filter : str, optional
-            Filter applied **to the root run** in each trace tree.
-            Lets you select child runs based on root attributes or feedback.
-
-            Example:
-            ```python
-            'and(eq(feedback_key,"user_score"), eq(feedback_score,1))'
-            ```
-            → return runs whose root trace has a user_score of 1.
+            Filter applied to the root run in each trace tree.
+            Example: 'and(eq(feedback_key,"user_score"), eq(feedback_score,1))'
+            → return runs whose root trace has user_score of 1.
 
         tree_filter : str, optional
-            Filter applied **to any run** in the trace tree (including siblings or children).
-            Example:
-            ```python
-            'eq(name,"ExpandQuery")'
-            ```
-            → return runs if *any* run in their trace had that name.
+            Filter applied to any run in the trace tree (including siblings or children).
+            Example: 'eq(name,"ExpandQuery")'
+            → return runs if any run in their trace had that name.
 
         order_by : str, default "-start_time"
             Sort field; prefix with "-" for descending order.
 
-        limit : int, default 50
-            Maximum number of runs to return.
-
         reference_example_id : str, optional
-            Filter runs by reference example ID. Returns only runs associated with
-            the specified dataset example ID.
+            Filter runs by reference example ID. Returns only runs associated with that dataset example.
 
-        format_type : str, default "pretty"
-            Output format for extracted messages. Options:
-            - `"pretty"` (default): Human-readable formatted text focusing on human/AI/tool message exchanges
-            - `"json"`: Pretty-printed JSON format
-            - `"raw"`: Compact single-line JSON format
+        max_chars_per_page : int, default 25000
+            When trace_id is set, max character count per page (compact JSON). Capped at 30000; higher values are not allowed.
 
-            When format_type is set, the tool extracts messages from runs and formats them,
-            making it ideal for conversational AI agents that care about message exchanges
-            rather than full trace details. The response returns only the formatted output:
-            - `formatted`: Formatted string representation of messages (when format_type is provided)
-
-            When format_type is not set, the response returns:
-            - `runs`: Full run data
+        preview_chars : int, default 150
+            When trace_id is set, truncate long strings to this length with "… (+N chars)". 150 keeps responses readable.
 
         ---
-        📤 RETURNS
-        ----------
-        Dict[str, Any]
-            Dictionary containing:
-            - If format_type is set: `{"formatted": str}` - formatted string representation of messages
-            - If format_type is not set: `{"runs": List[Dict]}` - list of LangSmith run dictionaries
+        🧪 EXAMPLES (always pass limit and page_number)
+        -------------------------------------------------
+        1️⃣ Get latest 10 root runs (first page):
+        fetch_runs("alpha-project", limit=10, page_number=1, is_root="true")
 
-        ---
-        🧪 EXAMPLES
-        ------------
-        1️⃣ **Get latest 10 root runs**
-        ```python
-        runs = fetch_runs("alpha-project", is_root="true", limit=10)
-        ```
+        2️⃣ Get all tool runs that errored:
+        fetch_runs("alpha-project", limit=50, page_number=1, run_type="tool", error="true")
 
-        2️⃣ **Get all tool runs that errored**
-        ```python
-        runs = fetch_runs("alpha-project", run_type="tool", error="true")
-        ```
+        3️⃣ Runs that took >5s and have tag "experimental":
+        fetch_runs("alpha-project", limit=50, page_number=1, filter='and(gt(latency,"5s"), has(tags,"experimental"))')
 
-        3️⃣ **Get all runs that took >5s and have tag "experimental"**
-        ```python
-        runs = fetch_runs("alpha-project", filter='and(gt(latency,"5s"), has(tags,"experimental"))')
-        ```
-
-        4️⃣ **Get all runs in a specific conversation thread**
-        ```python
+        4️⃣ All runs in a specific conversation thread:
         thread_id = "abc-123"
-        fql = f'and(in(metadata_key, ["session_id","conversation_id","thread_id"]), eq(metadata_value, "{thread_id}"))'
-        runs = fetch_runs("alpha-project", is_root="true", filter=fql)
-        ```
+        fetch_runs("alpha-project", limit=50, page_number=1, is_root="true", filter=f'and(in(metadata_key, ["session_id","conversation_id","thread_id"]), eq(metadata_value, "{thread_id}"))')
 
-        5️⃣ **List all runs called "extractor" whose root trace has feedback user_score=1**
-        ```python
-        runs = fetch_runs(
-            "alpha-project",
-            filter='eq(name,"extractor")',
-            trace_filter='and(eq(feedback_key,"user_score"), eq(feedback_score,1))'
-        )
-        ```
+        5️⃣ Runs named "extractor" whose root trace has feedback user_score=1:
+        fetch_runs("alpha-project", limit=50, page_number=1, filter='eq(name,"extractor")', trace_filter='and(eq(feedback_key,"user_score"), eq(feedback_score,1))')
 
-        6️⃣ **List all runs that started after a timestamp and either errored or got low feedback**
-        ```python
-        fql = 'and(gt(start_time,"2023-07-15T12:34:56Z"), or(neq(error,null), and(eq(feedback_key,"Correctness"), eq(feedback_score,0.0))))'
-        runs = fetch_runs("alpha-project", filter=fql)
-        ```
-
-        7️⃣ **Get formatted messages for conversational AI (default: pretty format)**
-        ```python
-        # Returns formatted messages focusing on human/AI/tool exchanges
-        result = fetch_runs("alpha-project", limit=10, format_type="pretty")
-        # result["formatted"] contains human-readable formatted messages
-        # result["messages"] contains the raw message list
-        # result["runs"] contains full run data
-        ```
-
-        8️⃣ **Get messages in JSON format**
-        ```python
-        result = fetch_runs("alpha-project", limit=10, format_type="json")
-        # result["messages"] contains messages as JSON array
-        # result["formatted"] contains pretty-printed JSON string
-        ```
-
-        ---
-        🧠 NOTES FOR AGENTS
-        --------------------
-        - Use this to **query LangSmith data sources dynamically**.
-        - Compose FQL strings programmatically based on your intent.
-        - Combine `filter`, `trace_filter`, and `tree_filter` for hierarchical logic.
-        - Always verify that `project_name` matches an existing LangSmith project.
-        - Returned `dict` objects have fields like:
-        - `id`, `name`, `run_type`, `inputs`, `outputs`, `error`, `start_time`, `end_time`, `latency`, `metadata`, `feedback`, etc.
-        - If the trace is big, save it to a file (if you have this ability) and analyze it locally.
-        - **For conversational AI agents**: Use `format_type="pretty"` (default) to get human-readable
-          message exchanges focusing on human/AI/tool messages rather than full trace details.
+        6️⃣ Get one page of runs for a trace (paginate with page_number and total_pages):
+        fetch_runs("my-project", limit=50, page_number=1, trace_id="123e4567-e89b-12d3-a456-426614174000")
         """  # noqa: W293
         try:
             client = get_client_from_context(ctx)
 
-            # Parse project_name - can be a single string or JSON array
             parsed_project_name = project_name
             if project_name and project_name.startswith("["):
                 try:
                     parsed_project_name = json.loads(project_name)
                 except json.JSONDecodeError:
-                    pass  # Use as-is if not valid JSON
+                    pass
 
-            # Parse boolean strings
+            # When trace_id is provided, return paginated response by default (with limit)
+            if trace_id:
+                return fetch_runs_paginated_tool(
+                    client,
+                    project_name=parsed_project_name,
+                    trace_id=trace_id,
+                    page_number=page_number,
+                    max_chars_per_page=max_chars_per_page,
+                    preview_chars=preview_chars,
+                    limit=limit,
+                )
+
             parsed_error = None
             if error is not None:
                 parsed_error = (
@@ -655,13 +559,6 @@ client = Client()  # Will automatically use environment variables
                     parsed_is_root = True
                 elif is_root.lower() == "false":
                     parsed_is_root = False
-
-            # Validate format_type
-            valid_formats = ["raw", "json", "pretty"]
-            if format_type not in valid_formats:
-                return {
-                    "error": f"Invalid format_type: {format_type}. Must be one of {valid_formats}"
-                }
 
             return fetch_runs_tool(
                 client,
@@ -676,8 +573,82 @@ client = Client()  # Will automatically use environment variables
                 order_by=order_by,
                 limit=limit,
                 reference_example_id=reference_example_id,
-                format_type=format_type,
-                ctx=ctx,
+            )
+        except Exception as e:
+            return {"error": str(e)}
+
+    @mcp.tool()
+    def paginate_runs(
+        project_name: str,
+        trace_id: str,
+        page_number: int = 1,
+        max_chars_per_page: int = 25000,
+        preview_chars: int = 150,
+        limit: int = 100,
+        ctx: Context = None,
+    ) -> Dict[str, Any]:
+        """
+        Fetch one page of runs for a single trace (char-based pagination, stateless).
+
+        All runs in the trace share the same trace_id. This tool returns one page of
+        those runs; use page_number (1-based) and total_pages to iterate. Defaults
+        max_chars_per_page=25000 and preview_chars=150 are a good starting point for
+        trace fetches (keeps responses manageable). Increase if you need fuller content per page.
+
+        Pages are built by character budget (compact JSON); each page's size is at most
+        max_chars_per_page. Long strings are truncated with "… (+N chars)" when
+        preview_chars > 0 or when needed to fit the budget.
+
+        Note: The server enforces the character budget per page. Some MCP clients may
+        still write large tool responses to a file instead of inline; that is client
+        behavior, not a different page size.
+
+        ---
+        ⚙️ PARAMETERS
+        -------------
+        project_name : str
+            The project name that contains the trace.
+        trace_id : str
+            Trace UUID. Every run returned is from this trace.
+        page_number : int, default 1
+            1-based page index. Out-of-range returns empty runs.
+        max_chars_per_page : int, default 25000
+            Max character count per page (compact JSON). Hard limit 30000; cannot set higher.
+        preview_chars : int, default 150
+            Truncate long strings in runs to this length with "… (+N chars)". 150 keeps responses readable.
+        limit : int, default 100
+            Maximum runs to fetch for the trace (capped at 100 by LangSmith API).
+
+        ---
+        📤 RETURNS
+        ----------
+        Dict with: runs (all from the same trace), page_number, total_pages, max_chars_per_page, preview_chars.
+        If content exceeded budget and was cut: _truncated, _truncated_message, _truncated_preview.
+
+        ---
+        🧪 EXAMPLE
+        ----------
+        Get all pages for one trace (every run is from that trace). Defaults 25k/150 work well:
+        r = paginate_runs("my-project", trace_id="<uuid>", page_number=1)
+        for p in range(2, r["total_pages"] + 1):
+            paginate_runs("my-project", trace_id="<uuid>", page_number=p)
+        """  # noqa: W293
+        try:
+            client = get_client_from_context(ctx)
+            parsed_project_name = project_name
+            if project_name and project_name.startswith("["):
+                try:
+                    parsed_project_name = json.loads(project_name)
+                except json.JSONDecodeError:
+                    pass
+            return fetch_runs_paginated_tool(
+                client,
+                project_name=parsed_project_name,
+                trace_id=trace_id,
+                page_number=page_number,
+                max_chars_per_page=max_chars_per_page,
+                preview_chars=preview_chars,
+                limit=limit,
             )
         except Exception as e:
             return {"error": str(e)}

@@ -4,187 +4,17 @@ import json
 from typing import Any, Dict, List
 
 
-def format_messages(messages: List[Dict[str, Any]], format_type: str) -> str:
+def format_messages(messages: List[Dict[str, Any]]) -> str:
     """
-    Format messages according to the specified format.
+    Format messages as pretty-printed JSON.
 
     Args:
         messages: List of message dictionaries
-        format_type: Output format ('raw', 'json', or 'pretty')
 
     Returns:
-        Formatted string representation of messages
+        JSON string (indent=2) representation of messages
     """
-    if format_type == "raw":
-        return _format_raw(messages)
-    elif format_type == "json":
-        return _format_json(messages)
-    elif format_type == "pretty":
-        return _format_pretty(messages)
-    else:
-        raise ValueError(f"Unknown format type: {format_type}")
-
-
-def _format_raw(messages: List[Dict[str, Any]]) -> str:
-    """Format as raw JSON (compact)."""
-    return json.dumps(messages, default=str, ensure_ascii=False)
-
-
-def _format_json(messages: List[Dict[str, Any]]) -> str:
-    """Format as pretty-printed JSON."""
     return json.dumps(messages, indent=2, default=str, ensure_ascii=False)
-
-
-def _format_pretty(messages: List[Dict[str, Any]]) -> str:
-    """Format as human-readable structured text focusing on conversational exchanges."""
-    if not messages:
-        return "No messages found."
-
-    output_parts = []
-
-    # Add header
-    output_parts.append("=" * 80)
-    output_parts.append("CONVERSATION MESSAGES")
-    output_parts.append("=" * 80)
-    output_parts.append("")
-
-    for i, msg in enumerate(messages, 1):
-        msg_type = msg.get("type") or msg.get("role", "unknown")
-
-        # Normalize message type for better display
-        type_display = msg_type.upper()
-        if type_display == "USER":
-            type_display = "👤 HUMAN"
-        elif type_display == "ASSISTANT" or type_display == "AI":
-            type_display = "🤖 AI"
-        elif type_display == "SYSTEM":
-            type_display = "⚙️  SYSTEM"
-        elif type_display == "TOOL":
-            type_display = "🔧 TOOL"
-        else:
-            type_display = f"📝 {type_display}"
-
-        # Create message header with better formatting
-        output_parts.append("─" * 80)
-        output_parts.append(f"{type_display} (Message {i})")
-        output_parts.append("─" * 80)
-
-        # Format content based on message type
-        content = msg.get("content", "")
-        tool_calls = msg.get("tool_calls", [])
-        name = msg.get("name")
-
-        # Handle tool responses - show tool name more prominently
-        if msg_type == "tool" and name:
-            # Don't duplicate tool name if it's already in the header
-            pass
-
-        # Format main content
-        if isinstance(content, str):
-            if content.strip():
-                output_parts.append("")
-                # Truncate very long content (e.g., tool responses with large JSON)
-                content_str = content.strip()
-                max_length = 1500  # Max characters before truncation for better readability
-                if len(content_str) > max_length:
-                    truncated = content_str[:max_length]
-                    remaining = len(content_str) - max_length
-                    output_parts.append(truncated)
-                    output_parts.append(f"\n... (truncated {remaining:,} more characters)")
-                else:
-                    output_parts.append(content_str)
-            else:
-                output_parts.append("(No text content)")
-        elif isinstance(content, list):
-            # Handle structured content (tool calls, etc.)
-            text_parts = []
-            for item in content:
-                if isinstance(item, dict):
-                    if "text" in item:
-                        text_parts.append(item["text"])
-                    elif "type" in item:
-                        if item["type"] == "tool_use":
-                            tool_name = item.get("name", "unknown")
-                            tool_input = item.get("input", {})
-                            text_parts.append(f"\n[Tool Call: {tool_name}]")
-                            if tool_input:
-                                text_parts.append(
-                                    f"Input: {json.dumps(tool_input, indent=2, default=str)}"
-                                )
-                        elif item["type"] == "image_url" and "image_url" in item:
-                            text_parts.append(f"[Image: {item['image_url'].get('url', 'N/A')}]")
-                        else:
-                            text_parts.append(json.dumps(item, indent=2, default=str))
-                else:
-                    text_parts.append(str(item))
-
-            if text_parts:
-                output_parts.append("")
-                output_parts.append("\n".join(text_parts))
-            else:
-                output_parts.append("(Structured content with no text)")
-        elif content:
-            output_parts.append("")
-            output_parts.append(str(content))
-        else:
-            output_parts.append("(No content)")
-
-        # Handle tool calls (OpenAI-style format)
-        if tool_calls:
-            output_parts.append("")
-            if len(tool_calls) == 1:
-                output_parts.append("Tool Call:")
-            else:
-                output_parts.append(f"Tool Calls ({len(tool_calls)}):")
-            for idx, tool_call in enumerate(tool_calls, 1):
-                if isinstance(tool_call, dict):
-                    func = tool_call.get("function", {})
-                    tool_name = func.get("name", "unknown")
-                    tool_args = func.get("arguments", "")
-
-                    if len(tool_calls) == 1:
-                        output_parts.append(f"  → {tool_name}()")
-                    else:
-                        output_parts.append(f"  {idx}. {tool_name}()")
-                    if tool_args:
-                        if isinstance(tool_args, str):
-                            try:
-                                # Try to parse and pretty-print JSON arguments
-                                parsed = json.loads(tool_args)
-                                args_str = json.dumps(parsed, indent=4, default=str)
-                                # Truncate very long arguments
-                                if len(args_str) > 400:
-                                    args_str = (
-                                        args_str[:400]
-                                        + f"\n     ... (truncated {len(args_str) - 400:,} more characters)"
-                                    )
-                                output_parts.append(f"     {args_str}")
-                            except (json.JSONDecodeError, TypeError):
-                                # Truncate string arguments too
-                                if len(tool_args) > 400:
-                                    output_parts.append(f"     {tool_args[:400]}... (truncated)")
-                                else:
-                                    output_parts.append(f"     {tool_args}")
-                        else:
-                            args_str = json.dumps(tool_args, indent=4, default=str)
-                            if len(args_str) > 400:
-                                args_str = (
-                                    args_str[:400]
-                                    + f"\n     ... (truncated {len(args_str) - 400:,} more characters)"
-                                )
-                            output_parts.append(f"     {args_str}")
-
-        # Handle additional metadata (only show for debugging, commented out for cleaner output)
-        # if msg.get("id"):
-        #     output_parts.append(f"\n[Message ID: {msg['id']}]")
-
-        output_parts.append("")  # Empty line between messages
-
-    output_parts.append("=" * 80)
-    output_parts.append(f"Total: {len(messages)} message(s)")
-    output_parts.append("=" * 80)
-
-    return "\n".join(output_parts)
 
 
 def _extract_messages_from_dict(
@@ -302,33 +132,13 @@ def extract_messages_from_run(run_dict: Dict[str, Any]) -> List[Dict[str, Any]]:
     return valid_messages
 
 
-def format_runs_with_messages(
-    runs: List[Dict[str, Any]], format_type: str = "pretty"
-) -> Dict[str, Any]:
+def format_runs_with_messages(runs: List[Dict[str, Any]]) -> Dict[str, Any]:
     """
-    Format runs by extracting and formatting messages from each run.
-
-    Args:
-        runs: List of run dictionaries
-        format_type: Output format ('raw', 'json', or 'pretty')
-
-    Returns:
-        Dictionary with formatted output based on format_type
+    Extract messages from runs and return pretty-printed JSON in "formatted".
     """
     all_messages = []
-
-    # Extract messages from all runs
     for run in runs:
         run_messages = extract_messages_from_run(run)
         if run_messages:
             all_messages.extend(run_messages)
-
-    # Format based on type
-    if format_type == "raw":
-        return {"messages": all_messages, "formatted": _format_raw(all_messages)}
-    elif format_type == "json":
-        return {"messages": all_messages, "formatted": _format_json(all_messages)}
-    elif format_type == "pretty":
-        return {"messages": all_messages, "formatted": _format_pretty(all_messages)}
-    else:
-        raise ValueError(f"Unknown format type: {format_type}")
+    return {"formatted": format_messages(all_messages)}
