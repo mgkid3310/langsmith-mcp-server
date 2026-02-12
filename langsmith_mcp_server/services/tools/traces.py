@@ -10,7 +10,6 @@ from langsmith_mcp_server.common.helpers import (
     find_in_dict,
 )
 from langsmith_mcp_server.common.pagination import (
-    MAX_RUNS_PER_TRACE,
     paginate_messages,
     paginate_runs,
 )
@@ -292,6 +291,9 @@ def list_projects_tool(
 def fetch_runs_tool(
     client: Client,
     project_name: Union[str, List[str]],
+    page_number: int = 1,
+    max_chars_per_page: int = 25000,
+    preview_chars: int = 150,
     trace_id: Optional[str] = None,
     run_type: Optional[str] = None,
     error: Optional[bool] = None,
@@ -306,10 +308,14 @@ def fetch_runs_tool(
     """
     Fetch LangSmith runs (traces, tools, chains, etc.) from one or more projects
     using flexible filters, query language expressions, and trace-level constraints.
+    Results are always paginated by character budget.
 
     Args:
         client: LangSmith client instance
         project_name: The name of the project to fetch the runs from
+        page_number: 1-based page index (default: 1)
+        max_chars_per_page: Max character count per page (compact JSON). Capped at 30000. Default 25000.
+        preview_chars: Truncate long strings to this length with "… (+N chars)". Default 150.
         trace_id: The ID of the trace to fetch the runs from
         run_type: The type of the run to fetch
         error: Whether to fetch errored runs
@@ -321,8 +327,10 @@ def fetch_runs_tool(
         limit: The limit to apply to the runs (capped at 100 by LangSmith API)
         reference_example_id: The ID of the reference example to filter runs by
     Returns:
-        Dictionary containing a "runs" key with a list of run dictionaries
+        Dictionary with runs, page_number, total_pages, max_chars_per_page, preview_chars.
+        May include _truncated, _truncated_message, _truncated_preview if content was cut.
     """
+    max_chars_per_page = min(max_chars_per_page, MAX_CHARS_PER_PAGE_TRACE)
     capped_limit = (
         min(limit, LANGSMITH_LIST_RUNS_MAX_LIMIT)
         if limit is not None
@@ -347,52 +355,8 @@ def fetch_runs_tool(
         # Convert UUID objects to strings for JSON serialization
         run_dict = convert_uuids_to_strings(run_dict)
         runs_dict.append(run_dict)
-    return {"runs": runs_dict}
 
-
-def fetch_runs_paginated_tool(
-    client: Client,
-    project_name: Union[str, List[str]],
-    trace_id: str,
-    page_number: int = 1,
-    max_chars_per_page: int = 25000,
-    preview_chars: int = 150,
-    limit: Optional[int] = None,
-) -> Dict[str, Any]:
-    """
-    Fetch one page of runs for a single trace (char-based pagination, stateless).
-
-    All runs in the trace share the same trace_id. Fetches up to limit (or
-    MAX_RUNS_PER_TRACE) runs for that trace, builds pages by character budget
-    (compact JSON), and returns the requested page. Defaults 25000 / 150 keep
-    trace responses manageable; increase if you need fuller content per page.
-
-    Args:
-        client: LangSmith client instance
-        project_name: Project name (or list) to fetch runs from
-        trace_id: Trace UUID. Every run returned is from this trace.
-        page_number: 1-based page index
-        max_chars_per_page: Max character count per page (compact JSON). Capped at 30000. Default 25000.
-        preview_chars: If > 0, truncate long strings to this length with "… (+N chars)". Default 150.
-        limit: Max runs to fetch (capped at MAX_RUNS_PER_TRACE). If None, uses MAX_RUNS_PER_TRACE.
-
-    Returns:
-        Dict with runs (all from the same trace), page_number, total_pages,
-        max_chars_per_page, preview_chars. May include _truncated, _truncated_message,
-        _truncated_preview if content was cut.
-    """
-    max_chars_per_page = min(max_chars_per_page, MAX_CHARS_PER_PAGE_TRACE)
-    run_limit = min(limit, MAX_RUNS_PER_TRACE) if limit is not None else MAX_RUNS_PER_TRACE
-    result = fetch_runs_tool(
-        client,
-        project_name=project_name,
-        trace_id=trace_id,
-        order_by="-start_time",
-        limit=run_limit,
-    )
-    if "error" in result:
-        return result
-    runs_dict = result["runs"]
+    # Always paginate the results
     return paginate_runs(
         runs_dict,
         page_number=page_number,

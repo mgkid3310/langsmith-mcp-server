@@ -24,7 +24,6 @@ from langsmith_mcp_server.services.tools.prompts import (
     list_prompts_tool,
 )
 from langsmith_mcp_server.services.tools.traces import (
-    fetch_runs_paginated_tool,
     fetch_runs_tool,
     get_thread_history_tool,
     list_projects_tool,
@@ -409,7 +408,7 @@ client = Client()  # Will automatically use environment variables
     def fetch_runs(
         project_name: str,
         limit: int,
-        page_number: int,
+        page_number: int = 1,
         trace_id: str = None,
         run_type: str = None,
         error: str = None,
@@ -424,21 +423,16 @@ client = Client()  # Will automatically use environment variables
         ctx: Context = None,
     ) -> Dict[str, Any]:
         """
-        Fetch LangSmith runs from one or more projects with flexible filters.
+        Fetch LangSmith runs from one or more projects with flexible filters and automatic pagination.
 
-        Pagination is always used: you must supply limit and page_number on every call.
-        - When trace_id is provided: returns one page of runs for that trace. Use
-          page_number (1-based) and the returned total_pages to request further pages.
-          All runs in every page belong to the same trace.
-        - When trace_id is not provided: returns one page of runs (up to limit items).
-          Use page_number=1 for the first batch; for more results you may need to use
-          filters (e.g. order_by, time range) or trace_id to narrow and paginate.
+        All results are paginated by character budget to keep responses manageable. Use page_number
+        and total_pages from the response to iterate through multiple pages.
 
         ---
-        📤 RETURNS (always pagination-aware)
-        -------------------------------------
-        When trace_id is set: dict with runs, page_number, total_pages, max_chars_per_page, preview_chars.
-        When trace_id is not set: dict with key `runs` (list of run dictionaries). Always respect limit.
+        📤 RETURNS (always paginated)
+        ------------------------------
+        Dict with: runs, page_number, total_pages, max_chars_per_page, preview_chars.
+        May include _truncated, _truncated_message, _truncated_preview if content exceeded budget.
 
         ---
         ⚙️ PARAMETERS (required)
@@ -448,16 +442,15 @@ client = Client()  # Will automatically use environment variables
             '["project1", "project2"]'
 
         limit : int (required)
-            Maximum number of runs to return per page (capped at 100 by LangSmith API).
-            Always specify; controls both trace pagination and non-trace list size.
+            Maximum number of runs to fetch from LangSmith API (capped at 100).
+            These runs are then paginated by character budget into pages.
 
-        page_number : int (required)
-            1-based page index. When trace_id is set, use with total_pages to iterate;
-            when trace_id is not set, use 1 for the first (and only) page of the filtered list.
+        page_number : int, default 1
+            1-based page index. Use with total_pages from response to iterate through pages.
 
         trace_id : str, optional
-            Return only runs that belong to this trace. When set, response is paginated;
-            every page contains runs from this same trace. UUID, e.g. "123e4567-e89b-12d3-a456-426614174000".
+            Return only runs that belong to this trace UUID.
+            Example: "123e4567-e89b-12d3-a456-426614174000"
 
         run_type : str, optional
             Filter runs by type: "llm", "chain", "tool", "retriever".
@@ -466,68 +459,63 @@ client = Client()  # Will automatically use environment variables
             "true" for errored runs, "false" for successful runs.
 
         is_root : str, optional
-            "true" for only top-level traces, "false" to exclude roots. If not provided, returns all runs.
+            "true" for only top-level traces, "false" to exclude roots.
 
         filter : str, optional
-            Filter Query Language (FQL) expression. Common field names:
+            Filter Query Language (FQL) expression. Common fields:
             id, name, run_type, start_time, end_time, latency, total_tokens, error, tags,
             feedback_key, feedback_score, metadata_key, metadata_value, execution_order.
-            Comparators: eq, neq, gt, gte, lt, lte, has, search, and, or, not.
+
+            Operators: eq, neq, gt, gte, lt, lte, has, search, and, or, not.
 
             Examples:
-            'gt(latency, "5s")'                                # took longer than 5 seconds
+            'gt(latency, "5s")'                                # runs > 5 seconds
             'neq(error, null)'                                 # errored runs
-            'has(tags, "beta")'                                # runs tagged "beta"
-            'and(eq(name,"ChatOpenAI"), eq(run_type,"llm"))'   # named & typed runs
-            'search("image classification")'                  # full-text search
+            'has(tags, "beta")'                                # tagged "beta"
+            'and(eq(name,"ChatOpenAI"), eq(run_type,"llm"))'   # name AND type
+            'search("image classification")'                   # full-text search
 
         trace_filter : str, optional
-            Filter applied to the root run in each trace tree.
+            Filter on the root run of each trace tree.
             Example: 'and(eq(feedback_key,"user_score"), eq(feedback_score,1))'
-            → return runs whose root trace has user_score of 1.
 
         tree_filter : str, optional
-            Filter applied to any run in the trace tree (including siblings or children).
+            Filter on any run in the trace tree (siblings/children included).
             Example: 'eq(name,"ExpandQuery")'
-            → return runs if any run in their trace had that name.
 
         order_by : str, default "-start_time"
-            Sort field; prefix with "-" for descending order.
+            Sort field; prefix "-" for descending. Examples: "-start_time", "latency"
 
         reference_example_id : str, optional
-            Filter runs by reference example ID. Returns only runs associated with that dataset example.
+            Filter runs by dataset example ID.
 
         max_chars_per_page : int, default 25000
-            When trace_id is set, max character count per page (compact JSON). Capped at 30000; higher values are not allowed.
+            Max JSON character count per page (capped at 30000). Pagination splits by this budget.
 
         preview_chars : int, default 150
-            When trace_id is set, truncate long strings to this length with "… (+N chars)". 150 keeps responses readable.
+            Truncate long strings to this length with "… (+N chars)". Keeps responses readable.
 
         ---
-        🧪 EXAMPLES (always pass limit and page_number)
-        -------------------------------------------------
-        1️⃣ Get latest 10 root runs (first page):
-        fetch_runs("alpha-project", limit=10, page_number=1, is_root="true")
+        🧪 EXAMPLES
+        -----------
+        1️⃣ Get latest 10 root runs:
+        fetch_runs("my-project", limit=10, page_number=1, is_root="true")
 
-        2️⃣ Get all tool runs that errored:
-        fetch_runs("alpha-project", limit=50, page_number=1, run_type="tool", error="true")
+        2️⃣ Get errored tool runs:
+        fetch_runs("my-project", limit=50, page_number=1, run_type="tool", error="true")
 
-        3️⃣ Runs that took >5s and have tag "experimental":
-        fetch_runs("alpha-project", limit=50, page_number=1, filter='and(gt(latency,"5s"), has(tags,"experimental"))')
+        3️⃣ Runs > 5s with "experimental" tag:
+        fetch_runs("my-project", limit=50, page_number=1,
+                   filter='and(gt(latency,"5s"), has(tags,"experimental"))')
 
-        4️⃣ All runs in a specific conversation thread:
-        thread_id = "abc-123"
-        fetch_runs("alpha-project", limit=50, page_number=1, is_root="true", filter=f'and(in(metadata_key, ["session_id","conversation_id","thread_id"]), eq(metadata_value, "{thread_id}"))')
-
-        5️⃣ Runs named "extractor" whose root trace has feedback user_score=1:
-        fetch_runs("alpha-project", limit=50, page_number=1, filter='eq(name,"extractor")', trace_filter='and(eq(feedback_key,"user_score"), eq(feedback_score,1))')
-
-        6️⃣ Get one page of runs for a trace (paginate with page_number and total_pages):
-        fetch_runs("my-project", limit=50, page_number=1, trace_id="123e4567-e89b-12d3-a456-426614174000")
+        4️⃣ All runs for a trace (paginate through pages):
+        r = fetch_runs("my-project", limit=50, page_number=1, trace_id="abc-123")
+        # Check r["total_pages"] and fetch subsequent pages if needed
         """  # noqa: W293
         try:
             client = get_client_from_context(ctx)
 
+            # Parse project name (support JSON array format)
             parsed_project_name = project_name
             if project_name and project_name.startswith("["):
                 try:
@@ -535,18 +523,7 @@ client = Client()  # Will automatically use environment variables
                 except json.JSONDecodeError:
                     pass
 
-            # When trace_id is provided, return paginated response by default (with limit)
-            if trace_id:
-                return fetch_runs_paginated_tool(
-                    client,
-                    project_name=parsed_project_name,
-                    trace_id=trace_id,
-                    page_number=page_number,
-                    max_chars_per_page=max_chars_per_page,
-                    preview_chars=preview_chars,
-                    limit=limit,
-                )
-
+            # Parse boolean string parameters
             parsed_error = None
             if error is not None:
                 parsed_error = (
@@ -560,9 +537,13 @@ client = Client()  # Will automatically use environment variables
                 elif is_root.lower() == "false":
                     parsed_is_root = False
 
+            # Always use paginated fetch_runs_tool (now supports pagination built-in)
             return fetch_runs_tool(
                 client,
                 project_name=parsed_project_name,
+                page_number=page_number,
+                max_chars_per_page=max_chars_per_page,
+                preview_chars=preview_chars,
                 trace_id=trace_id,
                 run_type=run_type,
                 error=parsed_error,
@@ -573,82 +554,6 @@ client = Client()  # Will automatically use environment variables
                 order_by=order_by,
                 limit=limit,
                 reference_example_id=reference_example_id,
-            )
-        except Exception as e:
-            return {"error": str(e)}
-
-    @mcp.tool()
-    def paginate_runs(
-        project_name: str,
-        trace_id: str,
-        page_number: int = 1,
-        max_chars_per_page: int = 25000,
-        preview_chars: int = 150,
-        limit: int = 100,
-        ctx: Context = None,
-    ) -> Dict[str, Any]:
-        """
-        Fetch one page of runs for a single trace (char-based pagination, stateless).
-
-        All runs in the trace share the same trace_id. This tool returns one page of
-        those runs; use page_number (1-based) and total_pages to iterate. Defaults
-        max_chars_per_page=25000 and preview_chars=150 are a good starting point for
-        trace fetches (keeps responses manageable). Increase if you need fuller content per page.
-
-        Pages are built by character budget (compact JSON); each page's size is at most
-        max_chars_per_page. Long strings are truncated with "… (+N chars)" when
-        preview_chars > 0 or when needed to fit the budget.
-
-        Note: The server enforces the character budget per page. Some MCP clients may
-        still write large tool responses to a file instead of inline; that is client
-        behavior, not a different page size.
-
-        ---
-        ⚙️ PARAMETERS
-        -------------
-        project_name : str
-            The project name that contains the trace.
-        trace_id : str
-            Trace UUID. Every run returned is from this trace.
-        page_number : int, default 1
-            1-based page index. Out-of-range returns empty runs.
-        max_chars_per_page : int, default 25000
-            Max character count per page (compact JSON). Hard limit 30000; cannot set higher.
-        preview_chars : int, default 150
-            Truncate long strings in runs to this length with "… (+N chars)". 150 keeps responses readable.
-        limit : int, default 100
-            Maximum runs to fetch for the trace (capped at 100 by LangSmith API).
-
-        ---
-        📤 RETURNS
-        ----------
-        Dict with: runs (all from the same trace), page_number, total_pages, max_chars_per_page, preview_chars.
-        If content exceeded budget and was cut: _truncated, _truncated_message, _truncated_preview.
-
-        ---
-        🧪 EXAMPLE
-        ----------
-        Get all pages for one trace (every run is from that trace). Defaults 25k/150 work well:
-        r = paginate_runs("my-project", trace_id="<uuid>", page_number=1)
-        for p in range(2, r["total_pages"] + 1):
-            paginate_runs("my-project", trace_id="<uuid>", page_number=p)
-        """  # noqa: W293
-        try:
-            client = get_client_from_context(ctx)
-            parsed_project_name = project_name
-            if project_name and project_name.startswith("["):
-                try:
-                    parsed_project_name = json.loads(project_name)
-                except json.JSONDecodeError:
-                    pass
-            return fetch_runs_paginated_tool(
-                client,
-                project_name=parsed_project_name,
-                trace_id=trace_id,
-                page_number=page_number,
-                max_chars_per_page=max_chars_per_page,
-                preview_chars=preview_chars,
-                limit=limit,
             )
         except Exception as e:
             return {"error": str(e)}
