@@ -69,7 +69,6 @@ The LangSmith MCP Server provides the following tools for integration with LangS
 | Tool Name | Description |
 |-----------|-------------|
 | `fetch_runs` | Fetch LangSmith runs (traces, tools, chains, etc.) from one or more projects. Supports filters (run_type, error, is_root), FQL (`filter`, `trace_filter`, `tree_filter`), and ordering. When `trace_id` is set, returns **char-based paginated** pages; otherwise returns one batch up to `limit`. Always pass `limit` and `page_number`. |
-| `paginate_runs` | Fetch one page of runs for a **single trace** (stateless, char-based pagination). Use `page_number` and returned `total_pages` to iterate. Ideal when you already have a trace_id and want predictable page sizes. |
 | `list_projects` | List LangSmith projects with optional filtering by name, dataset, and detail level (simplified vs full). |
 
 ### 📊 Datasets & Examples
@@ -100,7 +99,7 @@ The LangSmith MCP Server provides the following tools for integration with LangS
 
 Several tools use **stateless, character-budget pagination** so responses stay within a size limit and work well with LLM clients:
 
-- **Where it’s used:** `get_thread_history`, `fetch_runs` (when `trace_id` is set), and `paginate_runs`.
+- **Where it’s used:** `get_thread_history` and `fetch_runs` (when `trace_id` is set).
 - **Parameters:** You send `page_number` (1-based) on every request. Optional: `max_chars_per_page` (default 25000, cap 30000) and `preview_chars` (truncate long strings with "… (+N chars)").
 - **Response:** Each response includes `page_number`, `total_pages`, and the page payload (`result` for messages, `runs` for runs). To get more, call again with `page_number = 2`, then `3`, up to `total_pages`.
 - **Why it’s useful:** Pages are built by JSON character count, not item count, so each page fits within a fixed size. No cursor or server-side state—just integer page numbers.
