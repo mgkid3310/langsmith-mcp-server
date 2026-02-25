@@ -4,6 +4,7 @@ import os
 import re
 from datetime import datetime
 from decimal import Decimal
+from inspect import isawaitable
 from typing import Any, List, Optional, Union
 from uuid import UUID
 
@@ -57,7 +58,14 @@ def get_langsmith_client_from_api_key(
     return Client(**client_kwargs)
 
 
-def get_client_from_context(ctx: Context) -> Client:
+async def _resolve_maybe_awaitable(value: Any) -> Any:
+    """Return awaited value when awaitable, otherwise return as-is."""
+    if isawaitable(value):
+        return await value
+    return value
+
+
+async def get_client_from_context(ctx: Context) -> Client:
     """
     Get LangSmith client from API key and optional config using FastMCP context.
 
@@ -79,9 +87,9 @@ def get_client_from_context(ctx: Context) -> Client:
         ValueError: If API key is not found in headers (HTTP) or environment (STDIO)
     """  # noqa: W293
     # Try to get config from session state (set on first HTTP request)
-    api_key = ctx.get_state("api_key")
-    workspace_id = ctx.get_state("workspace_id") or None
-    endpoint = ctx.get_state("endpoint") or None
+    api_key = await _resolve_maybe_awaitable(ctx.get_state("api_key"))
+    workspace_id = await _resolve_maybe_awaitable(ctx.get_state("workspace_id")) or None
+    endpoint = await _resolve_maybe_awaitable(ctx.get_state("endpoint")) or None
 
     # If not in session, try to get from context variables (set by middleware for HTTP transport)
     if not api_key:
@@ -91,18 +99,22 @@ def get_client_from_context(ctx: Context) -> Client:
                 workspace_id = workspace_id_context.get("") or None
                 endpoint = endpoint_context.get("") or None
                 # Store in session for future requests
-                ctx.set_state("api_key", api_key)
+                await _resolve_maybe_awaitable(ctx.set_state("api_key", api_key))
                 if workspace_id:
-                    ctx.set_state("workspace_id", workspace_id)
+                    await _resolve_maybe_awaitable(ctx.set_state("workspace_id", workspace_id))
                 if endpoint:
-                    ctx.set_state("endpoint", endpoint)
+                    await _resolve_maybe_awaitable(ctx.set_state("endpoint", endpoint))
         except (RuntimeError, Exception):
             pass
 
     # If still not found, try to get from request headers (HTTP transport)
     if not api_key:
         try:
-            request = ctx.get_http_request()
+            request = None
+            if hasattr(ctx, "get_http_request"):
+                request = await _resolve_maybe_awaitable(ctx.get_http_request())
+            elif hasattr(ctx, "request_context") and ctx.request_context:
+                request = getattr(ctx.request_context, "request", None)
             if request:
                 # HTTP transport: try request.state first (set by middleware), then headers
                 if hasattr(request.state, "api_key") and request.state.api_key:
@@ -117,11 +129,11 @@ def get_client_from_context(ctx: Context) -> Client:
 
                 # Store in session for future requests
                 if api_key:
-                    ctx.set_state("api_key", api_key)
+                    await _resolve_maybe_awaitable(ctx.set_state("api_key", api_key))
                     if workspace_id:
-                        ctx.set_state("workspace_id", workspace_id)
+                        await _resolve_maybe_awaitable(ctx.set_state("workspace_id", workspace_id))
                     if endpoint:
-                        ctx.set_state("endpoint", endpoint)
+                        await _resolve_maybe_awaitable(ctx.set_state("endpoint", endpoint))
         except (RuntimeError, Exception):
             # STDIO transport: get_http_request() raises exception when no active HTTP request
             # Fall through to get from environment variables
@@ -143,7 +155,7 @@ def get_client_from_context(ctx: Context) -> Client:
     return get_langsmith_client_from_api_key(api_key, workspace_id=workspace_id, endpoint=endpoint)
 
 
-def get_api_key_and_endpoint_from_context(ctx: Context) -> tuple[str, str]:
+async def get_api_key_and_endpoint_from_context(ctx: Context) -> tuple[str, str]:
     """
     Get API key and endpoint from FastMCP context (same sources as get_client_from_context).
     Used by tools that call LangSmith REST APIs directly (e.g. billing/usage).
@@ -157,9 +169,12 @@ def get_api_key_and_endpoint_from_context(ctx: Context) -> tuple[str, str]:
     Raises:
         ValueError: If API key is not found.
     """
-    get_client_from_context(ctx)  # populates ctx state (api_key, endpoint)
-    api_key = ctx.get_state("api_key")
-    endpoint = ctx.get_state("endpoint") or "https://api.smith.langchain.com"
+    await get_client_from_context(ctx)  # populates ctx state (api_key, endpoint)
+    api_key = await _resolve_maybe_awaitable(ctx.get_state("api_key"))
+    endpoint = (
+        await _resolve_maybe_awaitable(ctx.get_state("endpoint"))
+        or "https://api.smith.langchain.com"
+    )
     return (str(api_key), str(endpoint).rstrip("/"))
 
 
